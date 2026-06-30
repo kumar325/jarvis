@@ -1,0 +1,7 @@
+.env
+.venv/
+jarvis_sandbox/
+input.wav
+__pycache__/
+*.pyc
+preferences.json
