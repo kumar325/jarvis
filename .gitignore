@@ -5,3 +5,4 @@ input.wav
 __pycache__/
 *.pyc
 preferences.json
+user_profile.json
