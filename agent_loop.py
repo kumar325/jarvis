@@ -1,6 +1,6 @@
 """The agent loop: ties together LLM + tools + conversation memory."""
 from langchain_groq import ChatGroq
-from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
+from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage, AIMessage
 from config import LLM_MODEL, MAX_TOOL_TURNS
 from tools import TOOLS, TOOLS_BY_NAME
 from system_prompt import build_system_message
@@ -33,15 +33,21 @@ def ask_jarvis(user_text):
                 _think("tool call failed, trying a different approach")
                 fallback = "I'm having trouble using my tools right now — try asking again."
                 conversation.append(HumanMessage(content=user_text))
-                conversation.append(SystemMessage(content=fallback))
+                conversation.append(AIMessage(content=fallback))
                 return fallback
             raise
 
         messages.append(response)
         if not response.tool_calls:
+            final_content = (response.content or "").strip()
+            if not final_content:
+                final_content = "I'm not sure how to answer that based on what I have. Could you rephrase or give me more context?"
+                conversation.append(HumanMessage(content=user_text))
+                conversation.append(AIMessage(content=final_content))
+                return final_content
             conversation.append(HumanMessage(content=user_text))
             conversation.append(response)
-            return response.content
+            return final_content
 
         for call in response.tool_calls:
             tool_fn = TOOLS_BY_NAME.get(call["name"])
@@ -62,8 +68,15 @@ def ask_jarvis(user_text):
             messages.append(ToolMessage(content=str(result), tool_call_id=call["id"]))
 
     _think("okay, I have enough info — answering now")
-    messages.append(HumanMessage(content="Stop using tools and give me a final answer now based on what you've found."))
+    messages.append(HumanMessage(content="Stop using tools and give me a final answer now based on what you've found. If the information is incomplete or sources conflicted, say so honestly."))
     response = llm.invoke(messages)
+    final_content = (response.content or "").strip()
+    if not final_content:
+        final_content = "I searched but couldn't find a clear answer. The sources I found were inconsistent or didn't directly address your question."
+
     conversation.append(HumanMessage(content=user_text))
-    conversation.append(response)
-    return response.content
+    if response.content and final_content == response.content.strip():
+        conversation.append(response)
+    else:
+        conversation.append(AIMessage(content=final_content))
+    return final_content

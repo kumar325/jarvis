@@ -6,6 +6,7 @@ from langchain_groq import ChatGroq
 from tavily import TavilyClient
 from config import LLM_MODEL
 from user_profile import learn_from_url, remember_fact, forget_fact
+from active_learning import save_dimension_answer
 
 tavily = TavilyClient(api_key=os.getenv("TAVILY_API_KEY"))
 llm_raw = ChatGroq(model=LLM_MODEL)
@@ -20,7 +21,7 @@ def web_search(query: str) -> str:
         result = tavily.search(
             query=query,
             max_results=5,
-            search_depth="basic",
+            search_depth="advanced",  # richer per-result content; 2x credits but better grounding
             include_answer=True,
         )
         out = ""
@@ -28,7 +29,7 @@ def web_search(query: str) -> str:
             out += f"Quick answer: {result['answer']}\n\n"
         out += "Sources:\n"
         for r in result.get("results", []):
-            out += f"- {r['title']}: {r['content'][:800]}\n"
+            out += f"- {r['title']}: {r['content'][:1500]}\n"
         return out
     except Exception as e:
         return f"Search failed: {e}"
@@ -37,9 +38,18 @@ def web_search(query: str) -> str:
 @tool
 def verify_search_result(question: str, retrieved_data: str) -> str:
     """Check if retrieved web data actually answers the user's question.
-    Returns 'OK' if the data matches what was asked, or describes what's wrong."""
+    Returns 'OK' if the data matches what was asked, or describes what's wrong.
+    Be especially strict about: location matching the query, dates matching,
+    and consistency between sources. If different sources in the data contradict
+    each other (e.g., two different scores for the same match), flag it."""
     check = llm_raw.invoke([
-        SystemMessage(content="You are a fact-checker. Reply 'OK' if the retrieved data clearly answers the question. Otherwise describe the mismatch in one sentence."),
+        SystemMessage(content=(
+            "You are a fact-checker. Reply 'OK' if the retrieved data clearly and "
+            "consistently answers the question. Otherwise describe the problem in "
+            "one sentence. Watch for: wrong entity (e.g., wrong city/country), wrong "
+            "date, OR internal contradictions where multiple sources in the data give "
+            "different facts. Be skeptical — if anything looks off, do not say OK."
+        )),
         HumanMessage(content=f"Question: {question}\n\nRetrieved data:\n{retrieved_data}")
     ])
     return check.content
