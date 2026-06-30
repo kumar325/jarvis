@@ -1,31 +1,42 @@
 """Jarvis — voice-controlled AI assistant with in-context RLHF."""
+import os
+import warnings
+
+# Suppress noisy startup warnings before any imports
+os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
+os.environ["TRANSFORMERS_VERBOSITY"] = "error"
+os.environ["PYTHONWARNINGS"] = "ignore"
+warnings.filterwarnings("ignore")
+
 from voice import record, transcribe, speak
 from agent_loop import ask_jarvis
 from preferences import save_pref
+from style_tracker import record_utterance
 
 while True:
-    mode = input("Press Enter to talk, or type 't' for text input: ").strip().lower()
+    mode = input("[Enter=voice, t=text] ").strip().lower()
 
     if mode == "t":
-        user_text = input("You (type): ").strip()
+        user_text = input(">>> ").strip()
         if not user_text:
-            print("[empty input, skipping]")
+            print("[empty input, skipping]", flush=True)
             continue
     else:
         path = record()
         user_text = transcribe(path)
 
-    print(f"You: {user_text}")
+    print(f"You: {user_text.strip()}", flush=True)
+    record_utterance(user_text)
     reply = ask_jarvis(user_text)
-    print(f"Jarvis: {reply}")
+    print(f"Jarvis: {reply}", flush=True)
     speak(reply)
 
     rating_input = input("Feedback (u=👍 / d=👎 / Enter to skip): ").strip().lower()
     if rating_input in ("u", "up", "1", "+"):
         save_pref(user_text, reply, "up")
-        print("[saved 👍]")
+        print("[saved 👍]", flush=True)
     elif rating_input in ("d", "down", "0", "-"):
         save_pref(user_text, reply, "down")
-        print("[saved 👎]")
+        print("[saved 👎]", flush=True)
     elif rating_input:
-        print("[unrecognized, skipped]")
+        print("[unrecognized, skipped]", flush=True)

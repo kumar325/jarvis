@@ -1,17 +1,15 @@
-"""Web search and result verification tools."""
+"""Web search, result verification, URL profile learning, and fact memory tools."""
 import os
 from langchain_core.tools import tool
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_groq import ChatGroq
 from tavily import TavilyClient
 from config import LLM_MODEL
-from user_profile import learn_from_url
-
+from user_profile import learn_from_url, remember_fact, forget_fact
 
 tavily = TavilyClient(api_key=os.getenv("TAVILY_API_KEY"))
-
-# A tool-less LLM used by verify_search_result to fact-check retrievals
 llm_raw = ChatGroq(model=LLM_MODEL)
+
 
 @tool
 def web_search(query: str) -> str:
@@ -21,7 +19,7 @@ def web_search(query: str) -> str:
     try:
         result = tavily.search(
             query=query,
-            max_results=3,
+            max_results=5,
             search_depth="basic",
             include_answer=True,
         )
@@ -35,6 +33,7 @@ def web_search(query: str) -> str:
     except Exception as e:
         return f"Search failed: {e}"
 
+
 @tool
 def verify_search_result(question: str, retrieved_data: str) -> str:
     """Check if retrieved web data actually answers the user's question.
@@ -45,6 +44,7 @@ def verify_search_result(question: str, retrieved_data: str) -> str:
     ])
     return check.content
 
+
 @tool
 def learn_about_user(url: str) -> str:
     """Fetch a URL (the user's personal webpage, blog, GitHub profile, or social media link)
@@ -52,3 +52,21 @@ def learn_about_user(url: str) -> str:
     of what was learned. Use ONLY when the user explicitly asks Jarvis to learn about them
     from a URL — e.g., 'read my GitHub' or 'check this profile and learn about me'."""
     return learn_from_url(url)
+
+
+@tool
+def remember(fact: str) -> str:
+    """Save a fact about the user to long-term memory. Use this whenever the user shares
+    something they want you to remember, or any preference/personal detail that would help
+    future conversations — e.g., 'I'm vegetarian', 'my partner's name is Asha', 'I prefer
+    short answers', 'I work night shifts'. The fact should be a complete, self-contained
+    sentence (e.g., 'The user is vegetarian' not just 'vegetarian')."""
+    return remember_fact(fact)
+
+
+@tool
+def forget(topic: str) -> str:
+    """Remove remembered facts that match a topic or phrase. Use when the user says
+    'forget that I...' or 'don't remember that anymore'. Pass a few keywords from the
+    fact to remove (e.g., 'vegetarian' will remove any remembered fact mentioning that)."""
+    return forget_fact(topic)

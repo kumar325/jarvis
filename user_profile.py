@@ -1,4 +1,4 @@
-"""User profile learning: fetch a URL, summarize what we learn about the user."""
+"""User profile learning: fetch a URL, summarize the user, and store remembered facts."""
 import json
 import requests
 from pathlib import Path
@@ -8,8 +8,6 @@ from langchain_groq import ChatGroq
 from config import LLM_MODEL
 
 PROFILE_FILE = Path("user_profile.json")
-
-# A tool-less LLM used for profile summarization
 llm_profile = ChatGroq(model=LLM_MODEL)
 
 
@@ -26,17 +24,25 @@ def fetch_page_text(url: str) -> str:
         return f"FETCH_ERROR: {e}"
 
     soup = BeautifulSoup(response.text, "html.parser")
-    # Remove non-content junk
     for tag in soup(["script", "style", "nav", "footer", "header", "noscript"]):
         tag.decompose()
     text = soup.get_text(separator=" ", strip=True)
-    # Trim to a sensible size; LLMs don't need 200KB of HTML
     return text[:8000]
 
 
+def load_profile() -> dict:
+    """Return current stored profile, or empty dict if none."""
+    if PROFILE_FILE.exists():
+        return json.loads(PROFILE_FILE.read_text(encoding="utf-8"))
+    return {}
+
+
+def save_profile(profile: dict):
+    PROFILE_FILE.write_text(json.dumps(profile, indent=2), encoding="utf-8")
+
+
 def learn_from_url(url: str) -> str:
-    """Fetch the URL, summarize the person, and save it to user_profile.json.
-    Returns a status message."""
+    """Fetch the URL, summarize the person, and save it. Returns a status message."""
     page_text = fetch_page_text(url)
     if page_text.startswith("FETCH_ERROR"):
         return f"Couldn't fetch {url}. Error: {page_text}"
@@ -56,20 +62,51 @@ def learn_from_url(url: str) -> str:
     profile = load_profile()
     profile["sources"] = profile.get("sources", [])
     profile["sources"].append(url)
-    profile["summary"] = summary  # overwrites prior summary; could accumulate instead
-    PROFILE_FILE.write_text(json.dumps(profile, indent=2), encoding="utf-8")
+    profile["summary"] = summary
+    save_profile(profile)
 
     return f"Learned about user from {url}. Summary: {summary}"
 
 
-def load_profile() -> dict:
-    """Return current stored profile, or empty dict if none."""
-    if PROFILE_FILE.exists():
-        return json.loads(PROFILE_FILE.read_text(encoding="utf-8"))
-    return {}
+def remember_fact(fact: str) -> str:
+    """Append a fact to the user's remembered_facts list."""
+    fact = fact.strip()
+    if not fact:
+        return "Nothing to remember — fact was empty."
+    profile = load_profile()
+    facts = profile.get("remembered_facts", [])
+    # Avoid exact duplicates
+    if fact in facts:
+        return f"Already remembered: {fact}"
+    facts.append(fact)
+    profile["remembered_facts"] = facts
+    save_profile(profile)
+    return f"Got it — I'll remember: {fact}"
+
+
+def forget_fact(fact_substring: str) -> str:
+    """Remove any remembered fact containing the given substring (case-insensitive)."""
+    profile = load_profile()
+    facts = profile.get("remembered_facts", [])
+    if not facts:
+        return "Nothing to forget — no facts stored yet."
+    sub = fact_substring.lower().strip()
+    kept = [f for f in facts if sub not in f.lower()]
+    removed = [f for f in facts if sub in f.lower()]
+    if not removed:
+        return f"No facts matched '{fact_substring}'."
+    profile["remembered_facts"] = kept
+    save_profile(profile)
+    return f"Forgot: {'; '.join(removed)}"
 
 
 def get_profile_summary() -> str:
-    """Return just the summary text for prompt injection. Empty string if no profile yet."""
+    """Return URL-derived summary for prompt injection. Empty string if no summary."""
     profile = load_profile()
     return profile.get("summary", "")
+
+
+def get_remembered_facts() -> list:
+    """Return the list of remembered facts."""
+    profile = load_profile()
+    return profile.get("remembered_facts", [])

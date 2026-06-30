@@ -15,8 +15,8 @@ conversation = []  # built up across turns
 
 
 def _think(message):
-    """Print an internal-thinking line in dim gray."""
-    print(f"{DIM}Jarvis (thinking): {message}{RESET}")
+    """Print an internal-thinking line in dim gray, flushed immediately."""
+    print(f"{DIM}Jarvis (thinking): {message}{RESET}", flush=True)
 
 
 def ask_jarvis(user_text):
