@@ -1,118 +1,21 @@
 """Preference learning: rating storage, semantic retrieval of past examples."""
 import json
-import os
-import ssl
-import time
-import urllib.request
 from datetime import datetime
-from pathlib import Path
 
 import numpy as np
-
-# #region agent log
-def _dbg_log(hypothesis_id, location, message, data):
-    try:
-        payload = {
-            "sessionId": "f41442",
-            "runId": "pre-fix",
-            "hypothesisId": hypothesis_id,
-            "location": location,
-            "message": message,
-            "data": data,
-            "timestamp": int(time.time() * 1000),
-        }
-        with open("debug-f41442.log", "a", encoding="utf-8") as f:
-            f.write(json.dumps(payload) + "\n")
-    except Exception:
-        pass
-
-
-def _probe_ssl_and_network():
-    paths = ssl.get_default_verify_paths()
-    ssl_info = {
-        "cafile": paths.cafile,
-        "capath": paths.capath,
-        "openssl_cafile": paths.openssl_cafile,
-        "SSL_CERT_FILE": os.environ.get("SSL_CERT_FILE"),
-        "REQUESTS_CA_BUNDLE": os.environ.get("REQUESTS_CA_BUNDLE"),
-        "HF_HUB_CACHE": os.environ.get("HF_HUB_CACHE"),
-    }
-    _dbg_log("A", "preferences.py:_probe_ssl_and_network", "ssl_paths_and_env", ssl_info)
-
-    try:
-        import certifi
-        certifi_path = certifi.where()
-        ssl_info["certifi_path"] = certifi_path
-        ssl_info["certifi_exists"] = Path(certifi_path).exists()
-        _dbg_log("D", "preferences.py:_probe_ssl_and_network", "certifi_bundle", ssl_info)
-    except Exception as e:
-        _dbg_log("D", "preferences.py:_probe_ssl_and_network", "certifi_error", {"error": str(e)})
-
-    hf_cache = Path(os.environ.get("HF_HOME", Path.home() / ".cache" / "huggingface")) / "hub"
-    model_cache_glob = list(hf_cache.glob("*MiniLM*")) if hf_cache.exists() else []
-    _dbg_log(
-        "C",
-        "preferences.py:_probe_ssl_and_network",
-        "hf_cache_state",
-        {
-            "hf_cache_exists": hf_cache.exists(),
-            "minilm_cache_dirs": [p.name for p in model_cache_glob[:5]],
-            "minilm_cache_count": len(model_cache_glob),
-        },
-    )
-
-    urllib_ok = False
-    urllib_err = None
-    try:
-        urllib.request.urlopen("https://huggingface.co", timeout=10)
-        urllib_ok = True
-    except Exception as e:
-        urllib_err = str(e)
-    _dbg_log(
-        "B",
-        "preferences.py:_probe_ssl_and_network",
-        "urllib_https_test",
-        {"ok": urllib_ok, "error": urllib_err},
-    )
-
-    httpx_ok = False
-    httpx_err = None
-    try:
-        import httpx
-        httpx.get("https://huggingface.co", timeout=10)
-        httpx_ok = True
-    except Exception as e:
-        httpx_err = str(e)
-    _dbg_log(
-        "B",
-        "preferences.py:_probe_ssl_and_network",
-        "httpx_https_test",
-        {"ok": httpx_ok, "error": httpx_err},
-    )
-
-
-_probe_ssl_and_network()
-# #endregion
 
 from sentence_transformers import SentenceTransformer
 from config import PREFS_FILE, EMBED_MODEL
 
 print("Loading embedding model...")
 try:
-    embedder = SentenceTransformer(EMBED_MODEL)
-    # #region agent log
-    _dbg_log("E", "preferences.py:embedder_load", "model_load_ok", {"model": EMBED_MODEL})
-    # #endregion
-except Exception as e:
-    # #region agent log
-    _dbg_log(
-        "E",
-        "preferences.py:embedder_load",
-        "model_load_failed",
-        {"model": EMBED_MODEL, "error_type": type(e).__name__, "error": str(e)},
-    )
-    # #endregion
-    raise
+    # Prefer the cached local model to avoid SSL issues when Hugging Face is unreachable.
+    embedder = SentenceTransformer(EMBED_MODEL, local_files_only=True)
+except Exception:
+    try:
+        embedder = SentenceTransformer(EMBED_MODEL)
+    except Exception:
+        raise
 
 def embed(text):
     """Convert text to a 384-dimensional vector."""

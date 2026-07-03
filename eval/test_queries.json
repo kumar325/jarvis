@@ -1,0 +1,8 @@
+[
+  {"id": "q1", "query": "What's the weather in Boston today?"},
+  {"id": "q2", "query": "Who won the most recent Super Bowl?"},
+  {"id": "q3", "query": "Remember that I'm vegetarian and I work night shifts."},
+  {"id": "q4", "query": "What do you remember about me so far?"},
+  {"id": "q5", "query": "What's 15% of 240?"},
+  {"id": "q6", "query": "Tell me a fun fact about octopuses."}
+]

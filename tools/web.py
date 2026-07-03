@@ -6,7 +6,6 @@ from langchain_groq import ChatGroq
 from tavily import TavilyClient
 from config import LLM_MODEL
 from user_profile import learn_from_url, remember_fact, forget_fact
-from active_learning import save_dimension_answer
 
 tavily = TavilyClient(api_key=os.getenv("TAVILY_API_KEY"))
 llm_raw = ChatGroq(model=LLM_MODEL)

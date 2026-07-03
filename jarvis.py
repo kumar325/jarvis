@@ -8,6 +8,13 @@ os.environ["TRANSFORMERS_VERBOSITY"] = "error"
 os.environ["PYTHONWARNINGS"] = "ignore"
 warnings.filterwarnings("ignore")
 
+# Use Windows certificate store so httpx (Groq, Hugging Face) can verify TLS.
+try:
+    import truststore
+    truststore.inject_into_ssl()
+except Exception:
+    pass
+
 from voice import record, transcribe, speak
 from agent_loop import ask_jarvis
 from preferences import save_pref
