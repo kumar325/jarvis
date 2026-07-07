@@ -1,8 +1,128 @@
 [
-  {"id": "q1", "query": "What's the weather in Boston today?"},
-  {"id": "q2", "query": "Who won the most recent Super Bowl?"},
-  {"id": "q3", "query": "Remember that I'm vegetarian and I work night shifts."},
-  {"id": "q4", "query": "What do you remember about me so far?"},
-  {"id": "q5", "query": "What's 15% of 240?"},
-  {"id": "q6", "query": "Tell me a fun fact about octopuses."}
+  {
+    "id": "p1",
+    "category": "profile",
+    "query": "What should I make for dinner tonight?",
+    "ground_truth_expectation": "The response should suggest vegetarian food — no meat, poultry, or fish — since the user is vegetarian."
+  },
+  {
+    "id": "p2",
+    "category": "profile",
+    "query": "What's a good time to schedule a morning call with me?",
+    "ground_truth_expectation": "The response should account for the user working night shifts and avoid suggesting an early morning time when they'd likely still be asleep."
+  },
+  {
+    "id": "p3",
+    "category": "profile",
+    "query": "Suggest a restaurant for lunch nearby.",
+    "ground_truth_expectation": "The response should recommend vegetarian-friendly restaurant options, since the user is vegetarian."
+  },
+  {
+    "id": "p4",
+    "category": "profile",
+    "query": "Can you recommend a quick breakfast idea?",
+    "ground_truth_expectation": "The response should suggest a vegetarian breakfast, avoiding meat items like bacon or sausage."
+  },
+  {
+    "id": "p5",
+    "category": "profile",
+    "query": "I'm planning meals for the week — any ideas?",
+    "ground_truth_expectation": "The response should suggest vegetarian meal ideas for the week, since the user is vegetarian."
+  },
+  {
+    "id": "p6",
+    "category": "profile",
+    "query": "When should I go to bed tonight to get enough sleep?",
+    "ground_truth_expectation": "The response should account for the user working night shifts rather than assuming a standard daytime schedule."
+  },
+  {
+    "id": "p7",
+    "category": "profile",
+    "query": "Is it okay to schedule a dentist appointment at 9am tomorrow?",
+    "ground_truth_expectation": "The response should note that 9am may be difficult for the user since they work night shifts and might still be asleep."
+  },
+  {
+    "id": "m1",
+    "category": "memory",
+    "query": "What do you remember about me so far?",
+    "ground_truth_expectation": "The response should mention that the user is vegetarian and works night shifts."
+  },
+  {
+    "id": "m2",
+    "category": "memory",
+    "query": "Am I vegetarian or do I eat meat?",
+    "ground_truth_expectation": "The response should correctly state that the user is vegetarian."
+  },
+  {
+    "id": "m3",
+    "category": "memory",
+    "query": "What's my work schedule like?",
+    "ground_truth_expectation": "The response should mention that the user works night shifts."
+  },
+  {
+    "id": "m4",
+    "category": "memory",
+    "query": "Do you know anything about my diet?",
+    "ground_truth_expectation": "The response should mention that the user is vegetarian."
+  },
+  {
+    "id": "m5",
+    "category": "memory",
+    "query": "Quick recap — what have I told you to remember?",
+    "ground_truth_expectation": "The response should list the previously remembered facts about the user (vegetarian, works night shifts)."
+  },
+  {
+    "id": "s1",
+    "category": "style",
+    "query": "Explain how photosynthesis works.",
+    "ground_truth_expectation": "The response should be short (1-2 sentences) and casual in tone, not a formal lecture."
+  },
+  {
+    "id": "s2",
+    "category": "style",
+    "query": "Tell me about the history of the Roman Empire.",
+    "ground_truth_expectation": "The response should be brief and conversational, not a long formal essay."
+  },
+  {
+    "id": "s3",
+    "category": "style",
+    "query": "What's the difference between a crocodile and an alligator?",
+    "ground_truth_expectation": "The response should be short and casual, matching an informal conversational style rather than a textbook tone."
+  },
+  {
+    "id": "s4",
+    "category": "style",
+    "query": "Describe how a car engine works.",
+    "ground_truth_expectation": "The response should be concise and casual, not overly technical or formal."
+  },
+  {
+    "id": "w1",
+    "category": "web",
+    "query": "What's the weather in Boston today?"
+  },
+  {
+    "id": "w2",
+    "category": "web",
+    "query": "Who won the most recent Super Bowl?"
+  },
+  {
+    "id": "w3",
+    "category": "web",
+    "query": "What's the current price of Bitcoin?"
+  },
+  {
+    "id": "w4",
+    "category": "web",
+    "query": "What's the latest big news story in AI this week?"
+  },
+  {
+    "id": "g1",
+    "category": "general",
+    "query": "What's 15% of 240?"
+  },
+  {
+    "id": "g2",
+    "category": "general",
+    "query": "Tell me a fun fact about octopuses."
+  }
 ]

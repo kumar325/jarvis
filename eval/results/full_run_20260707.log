@@ -1,0 +1,314 @@
+C:\Users\Mahar\OneDrive\Desktop\KaranC++\jarvis\.venv\Lib\site-packages\lazy_loader\__init__.py:200: RuntimeWarning: subpackages can technically be lazily loaded, but it causes the package to be eagerly loaded even if it is already lazily loaded. So, you probably shouldn't use subpackages with this lazy feature.
+  warnings.warn(msg, RuntimeWarning)
+C:\Users\Mahar\OneDrive\Desktop\KaranC++\jarvis\.venv\Lib\site-packages\lazy_loader\__init__.py:200: RuntimeWarning: subpackages can technically be lazily loaded, but it causes the package to be eagerly loaded even if it is already lazily loaded. So, you probably shouldn't use subpackages with this lazy feature.
+  warnings.warn(msg, RuntimeWarning)
+Loading embedding model...
+Loading weights:   0%|          | 0/103 [00:00<?, ?it/s]Loading weights: 100%|##########| 103/103 [00:00<00:00, 6248.29it/s]
+Running 22 queries x 5 ablation configs = 110 Jarvis calls...
+
+=== ablation: full ===
+  -> p1: What should I make for dinner tonight?
+  -> p2: What's a good time to schedule a morning call with me?
+  -> p3: Suggest a restaurant for lunch nearby.
+  -> p4: Can you recommend a quick breakfast idea?
+  -> p5: I'm planning meals for the week — any ideas?
+  -> p6: When should I go to bed tonight to get enough sleep?
+  -> p7: Is it okay to schedule a dentist appointment at 9am tomorrow?
+  -> m1: What do you remember about me so far?
+  -> m2: Am I vegetarian or do I eat meat?
+  -> m3: What's my work schedule like?
+  -> m4: Do you know anything about my diet?
+  -> m5: Quick recap — what have I told you to remember?
+  -> s1: Explain how photosynthesis works.
+  -> s2: Tell me about the history of the Roman Empire.
+  -> s3: What's the difference between a crocodile and an alligator?
+  -> s4: Describe how a car engine works.
+  -> w1: What's the weather in Boston today?
+[2mJarvis (thinking): used web_search ? Quick answer: Boston in July 2026 will have daytime highs around 28°C, moderate heat, and 9 hours of sunshine daily. Exp...[0m
+[2mJarvis (thinking): used web_search ? Quick answer: The current temperature in Boston, Massachusetts is 64°F, with overcast skies and a chance of showers. The...[0m
+  -> w2: Who won the most recent Super Bowl?
+[2mJarvis (thinking): used web_search ? Quick answer: The Kansas City Chiefs won Super Bowl LVIII, defeating the San Francisco 49ers 25-22 in overtime on Februa...[0m
+  -> w3: What's the current price of Bitcoin?
+[2mJarvis (thinking): used web_search ? Quick answer: As of July 2026, Bitcoin's price is around $70,000 USD. This reflects market trends and predictions from 2...[0m
+[2mJarvis (thinking): used web_search ? Quick answer: Bitcoin's predicted price in July 2026 is around $62,621.48. This forecast is based on historical trends a...[0m
+  -> w4: What's the latest big news story in AI this week?
+[2mJarvis (thinking): used web_search ? Quick answer: In July 2026, Z.ai's GLM-5.2 model sparked debate over China's AI progress, and Microsoft introduced new A...[0m
+  -> g1: What's 15% of 240?
+  -> g2: Tell me a fun fact about octopuses.
+
+=== ablation: no_memory ===
+  -> p1: What should I make for dinner tonight?
+  -> p2: What's a good time to schedule a morning call with me?
+  -> p3: Suggest a restaurant for lunch nearby.
+  -> p4: Can you recommend a quick breakfast idea?
+  -> p5: I'm planning meals for the week — any ideas?
+  -> p6: When should I go to bed tonight to get enough sleep?
+  -> p7: Is it okay to schedule a dentist appointment at 9am tomorrow?
+  -> m1: What do you remember about me so far?
+  -> m2: Am I vegetarian or do I eat meat?
+  -> m3: What's my work schedule like?
+  -> m4: Do you know anything about my diet?
+  -> m5: Quick recap — what have I told you to remember?
+  -> s1: Explain how photosynthesis works.
+  -> s2: Tell me about the history of the Roman Empire.
+  -> s3: What's the difference between a crocodile and an alligator?
+  -> s4: Describe how a car engine works.
+  -> w1: What's the weather in Boston today?
+[2mJarvis (thinking): used web_search ? Quick answer: Today in Boston, it's overcast with a temperature of 67°F (19°C) and a chance of showers. The humidity is ...[0m
+  -> w2: Who won the most recent Super Bowl?
+[2mJarvis (thinking): used web_search ? Quick answer: The Kansas City Chiefs won Super Bowl LVIII on February 11, 2024, defeating the San Francisco 49ers 25-22 ...[0m
+  -> w3: What's the current price of Bitcoin?
+[2mJarvis (thinking): used web_search ? Quick answer: The current price of Bitcoin is $63,335.28 USD. This value is subject to change as cryptocurrency markets ...[0m
+[2mJarvis (thinking): used verify_search_result ? The retrieved data gives three different Bitcoin prices ($63,335.28, $63,304.94, $63,199.93), so it does not provide a c...[0m
+[2mJarvis (thinking): used web_search ? Quick answer: The current Bitcoin price is $63,338.87 USD, according to CoinMarketCap. This reflects a 0.72% increase in...[0m
+[2mJarvis (thinking): okay, I have enough info — answering now[0m
+  -> w4: What's the latest big news story in AI this week?
+[2mJarvis (thinking): used web_search ? Quick answer: Gemini 3.5 Pro remains in preview, China's AI companion law forces shutdowns on 345 million users, and Tes...[0m
+[2mJarvis (thinking): used web_search ? Quick answer: On July 15, 2026, China's new AI companion law forces ByteDance and Alibaba to shut down their AI companio...[0m
+  -> g1: What's 15% of 240?
+  -> g2: Tell me a fun fact about octopuses.
+
+=== ablation: no_style ===
+  -> p1: What should I make for dinner tonight?
+  -> p2: What's a good time to schedule a morning call with me?
+  -> p3: Suggest a restaurant for lunch nearby.
+  -> p4: Can you recommend a quick breakfast idea?
+  -> p5: I'm planning meals for the week — any ideas?
+  -> p6: When should I go to bed tonight to get enough sleep?
+  -> p7: Is it okay to schedule a dentist appointment at 9am tomorrow?
+  -> m1: What do you remember about me so far?
+  -> m2: Am I vegetarian or do I eat meat?
+  -> m3: What's my work schedule like?
+  -> m4: Do you know anything about my diet?
+  -> m5: Quick recap — what have I told you to remember?
+  -> s1: Explain how photosynthesis works.
+  -> s2: Tell me about the history of the Roman Empire.
+  -> s3: What's the difference between a crocodile and an alligator?
+  -> s4: Describe how a car engine works.
+  -> w1: What's the weather in Boston today?
+[2mJarvis (thinking): used web_search ? Quick answer: The current temperature in Boston, Massachusetts is 64°F, with overcast skies and a chance of showers. The...[0m
+  -> w2: Who won the most recent Super Bowl?
+[2mJarvis (thinking): used web_search ? Quick answer: The Kansas City Chiefs won Super Bowl LVIII in 2024, defeating the San Francisco 49ers 25-22 in overtime. ...[0m
+  -> w3: What's the current price of Bitcoin?
+[2mJarvis (thinking): used web_search ? Quick answer: As of July 7, 2026, Bitcoin's price is $64,072.30, up from $63,546.43 the previous day. This represents a ...[0m
+  -> w4: What's the latest big news story in AI this week?
+[2mJarvis (thinking): used web_search ? Quick answer: In July 2026, Z.ai's GLM-5.2 model showed China's AI progress, while Anthropic discussed custom AI chips w...[0m
+  -> g1: What's 15% of 240?
+  -> g2: Tell me a fun fact about octopuses.
+
+=== ablation: no_prefs ===
+  -> p1: What should I make for dinner tonight?
+  -> p2: What's a good time to schedule a morning call with me?
+  -> p3: Suggest a restaurant for lunch nearby.
+  -> p4: Can you recommend a quick breakfast idea?
+  -> p5: I'm planning meals for the week — any ideas?
+  -> p6: When should I go to bed tonight to get enough sleep?
+  -> p7: Is it okay to schedule a dentist appointment at 9am tomorrow?
+  -> m1: What do you remember about me so far?
+  -> m2: Am I vegetarian or do I eat meat?
+  -> m3: What's my work schedule like?
+  -> m4: Do you know anything about my diet?
+  -> m5: Quick recap — what have I told you to remember?
+  -> s1: Explain how photosynthesis works.
+  -> s2: Tell me about the history of the Roman Empire.
+  -> s3: What's the difference between a crocodile and an alligator?
+  -> s4: Describe how a car engine works.
+  -> w1: What's the weather in Boston today?
+[2mJarvis (thinking): used web_search ? Quick answer: On July 7, 2026, Boston, MA will experience showers and thunderstorms with a high of 71°F. Expect overcast...[0m
+  -> w2: Who won the most recent Super Bowl?
+[2mJarvis (thinking): used web_search ? Quick answer: The Kansas City Chiefs won Super Bowl LVIII in 2024, defeating the San Francisco 49ers 25-22 in overtime. ...[0m
+  -> w3: What's the current price of Bitcoin?
+[2mJarvis (thinking): used web_search ? Quick answer: On July 7, 2026, Bitcoin's price is predicted to be around $64,000 or above according to Robinhood's predi...[0m
+[2mJarvis (thinking): used web_search ? Quick answer: On July 7, 2026, Bitcoin's price is forecasted to be $63,166.11. This prediction is based on technical ana...[0m
+  -> w4: What's the latest big news story in AI this week?
+[2mJarvis (thinking): used web_search ? Quick answer: In July 2026, Gemini 3.5 Pro remains in preview, China's AI companion law forces shutdowns on 345 million ...[0m
+  -> g1: What's 15% of 240?
+  -> g2: Tell me a fun fact about octopuses.
+
+=== ablation: no_web_search ===
+  -> p1: What should I make for dinner tonight?
+  -> p2: What's a good time to schedule a morning call with me?
+  -> p3: Suggest a restaurant for lunch nearby.
+  -> p4: Can you recommend a quick breakfast idea?
+  -> p5: I'm planning meals for the week — any ideas?
+  -> p6: When should I go to bed tonight to get enough sleep?
+  -> p7: Is it okay to schedule a dentist appointment at 9am tomorrow?
+  -> m1: What do you remember about me so far?
+  -> m2: Am I vegetarian or do I eat meat?
+  -> m3: What's my work schedule like?
+  -> m4: Do you know anything about my diet?
+  -> m5: Quick recap — what have I told you to remember?
+  -> s1: Explain how photosynthesis works.
+  -> s2: Tell me about the history of the Roman Empire.
+  -> s3: What's the difference between a crocodile and an alligator?
+  -> s4: Describe how a car engine works.
+  -> w1: What's the weather in Boston today?
+[2mJarvis (thinking): used web_search ? [web_search disabled for this ablation config][0m
+  -> w2: Who won the most recent Super Bowl?
+[2mJarvis (thinking): used web_search ? [web_search disabled for this ablation config][0m
+  -> w3: What's the current price of Bitcoin?
+[2mJarvis (thinking): used web_search ? [web_search disabled for this ablation config][0m
+  -> w4: What's the latest big news story in AI this week?
+[2mJarvis (thinking): used web_search ? [web_search disabled for this ablation config][0m
+  -> g1: What's 15% of 240?
+  -> g2: Tell me a fun fact about octopuses.
+
+Scoring 110 responses with UpTrain (judge model: groq/llama-3.3-70b-versatile)...
+  0%|          | 0/110 [00:00<?, ?it/s]  1%|          | 1/110 [00:03<06:56,  3.82s/it]  7%|7         | 8/110 [00:03<00:37,  2.71it/s] 23%|##2       | 25/110 [00:04<00:08, 10.27it/s] 35%|###4      | 38/110 [00:04<00:04, 17.62it/s] 43%|####2     | 47/110 [00:04<00:02, 23.20it/s] 51%|#####     | 56/110 [00:04<00:02, 22.27it/s] 57%|#####7    | 63/110 [00:05<00:02, 20.86it/s] 62%|######1   | 68/110 [00:07<00:06,  6.66it/s] 65%|######5   | 72/110 [00:10<00:08,  4.46it/s] 68%|######8   | 75/110 [00:11<00:10,  3.43it/s] 70%|#######   | 77/110 [00:12<00:10,  3.20it/s] 72%|#######1  | 79/110 [00:14<00:11,  2.70it/s] 73%|#######2  | 80/110 [00:14<00:11,  2.67it/s] 74%|#######3  | 81/110 [00:15<00:11,  2.53it/s] 75%|#######4  | 82/110 [00:15<00:11,  2.35it/s] 75%|#######5  | 83/110 [00:16<00:11,  2.29it/s] 76%|#######6  | 84/110 [00:16<00:12,  2.16it/s] 77%|#######7  | 85/110 [00:17<00:11,  2.11it/s] 78%|#######8  | 86/110 [00:18<00:12,  1.86it/s] 79%|#######9  | 87/110 [00:18<00:12,  1.89it/s] 80%|########  | 88/110 [00:18<00:10,  2.05it/s] 81%|########  | 89/110 [00:19<00:10,  2.02it/s] 82%|########1 | 90/110 [00:20<00:11,  1.67it/s] 83%|########2 | 91/110 [00:20<00:11,  1.72it/s] 84%|########3 | 92/110 [00:21<00:11,  1.63it/s] 85%|########4 | 93/110 [00:21<00:09,  1.86it/s] 85%|########5 | 94/110 [00:22<00:08,  1.97it/s] 86%|########6 | 95/110 [00:22<00:08,  1.87it/s] 87%|########7 | 96/110 [00:23<00:07,  1.87it/s] 88%|########8 | 97/110 [00:24<00:07,  1.82it/s] 89%|########9 | 98/110 [00:24<00:06,  1.88it/s] 90%|######### | 99/110 [00:25<00:06,  1.67it/s] 91%|######### | 100/110 [00:25<00:05,  1.76it/s] 92%|#########1| 101/110 [00:26<00:05,  1.70it/s] 93%|#########2| 102/110 [00:26<00:04,  1.80it/s] 94%|#########3| 103/110 [00:27<00:03,  1.90it/s] 95%|#########4| 104/110 [00:27<00:03,  1.80it/s] 95%|#########5| 105/110 [00:28<00:02,  1.74it/s] 96%|#########6| 106/110 [00:29<00:02,  1.77it/s] 97%|#########7| 107/110 [00:29<00:01,  1.87it/s] 98%|#########8| 108/110 [00:32<00:02,  1.12s/it] 99%|#########9| 109/110 [00:34<00:01,  1.45s/it]100%|##########| 110/110 [00:38<00:00,  2.36s/it]100%|##########| 110/110 [00:38<00:00,  2.84it/s]
+  0%|          | 0/110 [00:00<?, ?it/s]  1%|          | 1/110 [00:00<01:29,  1.22it/s]  4%|3         | 4/110 [00:00<00:19,  5.42it/s]  8%|8         | 9/110 [00:01<00:08, 12.52it/s] 17%|#7        | 19/110 [00:01<00:03, 28.20it/s] 35%|###5      | 39/110 [00:01<00:01, 62.92it/s] 58%|#####8    | 64/110 [00:01<00:00, 102.56it/s] 77%|#######7  | 85/110 [00:01<00:00, 128.24it/s] 93%|#########2| 102/110 [00:02<00:00, 54.17it/s]100%|##########| 110/110 [00:06<00:00, 16.00it/s]
+  0%|          | 0/110 [00:00<?, ?it/s]  1%|          | 1/110 [00:00<01:21,  1.34it/s]  4%|3         | 4/110 [00:00<00:21,  4.99it/s] 18%|#8        | 20/110 [00:01<00:03, 25.96it/s] 27%|##7       | 30/110 [00:01<00:02, 32.01it/s] 37%|###7      | 41/110 [00:01<00:01, 37.02it/s] 61%|######    | 67/110 [00:01<00:00, 65.25it/s] 72%|#######1  | 79/110 [00:02<00:00, 49.23it/s] 78%|#######8  | 86/110 [00:07<00:03,  6.36it/s] 83%|########2 | 91/110 [00:11<00:05,  3.61it/s] 86%|########6 | 95/110 [00:15<00:05,  2.84it/s] 89%|########9 | 98/110 [00:16<00:04,  2.60it/s] 91%|######### | 100/110 [00:18<00:04,  2.30it/s] 93%|#########2| 102/110 [00:20<00:03,  2.01it/s] 94%|#########3| 103/110 [00:20<00:03,  1.99it/s] 95%|#########4| 104/110 [00:21<00:03,  1.85it/s] 95%|#########5| 105/110 [00:22<00:03,  1.56it/s] 96%|#########6| 106/110 [00:23<00:02,  1.63it/s] 97%|#########7| 107/110 [00:23<00:01,  1.58it/s] 98%|#########8| 108/110 [00:24<00:01,  1.53it/s] 99%|#########9| 109/110 [00:25<00:00,  1.40it/s]100%|##########| 110/110 [00:26<00:00,  1.34it/s]100%|##########| 110/110 [00:26<00:00,  4.17it/s]
+  0%|          | 0/110 [00:00<?, ?it/s]  1%|          | 1/110 [00:01<01:55,  1.06s/it]  5%|4         | 5/110 [00:01<00:19,  5.44it/s] 12%|#1        | 13/110 [00:01<00:06, 15.73it/s] 22%|##1       | 24/110 [00:01<00:02, 31.38it/s] 31%|###       | 34/110 [00:01<00:01, 43.14it/s] 46%|####6     | 51/110 [00:01<00:00, 69.50it/s] 56%|#####6    | 62/110 [00:01<00:00, 73.89it/s] 76%|#######6  | 84/110 [00:01<00:00, 99.59it/s] 91%|######### | 100/110 [00:02<00:00, 107.96it/s]100%|##########| 110/110 [00:06<00:00, 16.81it/s] 
+  0%|          | 0/110 [00:00<?, ?it/s]  1%|          | 1/110 [00:00<01:09,  1.57it/s] 10%|#         | 11/110 [00:00<00:05, 19.53it/s] 22%|##1       | 24/110 [00:00<00:02, 41.89it/s] 31%|###       | 34/110 [00:00<00:01, 54.94it/s] 46%|####6     | 51/110 [00:01<00:00, 81.65it/s] 64%|######3   | 70/110 [00:01<00:00, 107.73it/s] 85%|########4 | 93/110 [00:01<00:00, 137.72it/s][32m2026-07-07 00:20:29.268[0m | [31m[1mERROR   [0m | [36muptrain.operators.language.llm[0m:[36mparse_json[0m:[36m55[0m - [31m[1mError when parsing JSON: <string>:7 Unexpected "]" at column 80[0m
+[32m2026-07-07 00:20:29.269[0m | [31m[1mERROR   [0m | [36muptrain.operators.language.llm[0m:[36masync_process_payload[0m:[36m103[0m - [31m[1mError when sending request to LLM API: Response doesn't pass the validation func.
+Response: {
+    "Facts": [
+        {"Fact": "1. Bitcoin’s price is currently around $62-$64k."},
+        {"Fact": "2. YCharts lists Bitcoin’s price at $63,546 USD on July 6, 2026."},
+        {"Fact": "3. A market snapshot shows Bitcoin’s price at $61,934 USD as of 8:45 am July 6, 2026, according to Cointelegraph."},
+        {"Fact": "4. Bitcoin’s current price is roughly in the low-$60k range."},
+        {"Fact": "5. Bitcoin’s price can vary by a couple of thousand dollars."]
+    }
+}[0m
+[32m2026-07-07 00:20:29.269[0m | [1mINFO    [0m | [36muptrain.operators.language.llm[0m:[36masync_process_payload[0m:[36m162[0m - [1mRetrying for payload 84[0m
+[32m2026-07-07 00:20:29.850[0m | [31m[1mERROR   [0m | [36muptrain.operators.language.llm[0m:[36mparse_json[0m:[36m55[0m - [31m[1mError when parsing JSON: <string>:7 Unexpected "]" at column 80[0m
+[32m2026-07-07 00:20:29.850[0m | [31m[1mERROR   [0m | [36muptrain.operators.language.llm[0m:[36masync_process_payload[0m:[36m103[0m - [31m[1mError when sending request to LLM API: Response doesn't pass the validation func.
+Response: {
+    "Facts": [
+        {"Fact": "1. Bitcoin’s price is currently around $62-$64k."},
+        {"Fact": "2. YCharts lists Bitcoin’s price at $63,546 USD on July 6, 2026."},
+        {"Fact": "3. A market-snapshot shows Bitcoin’s price at $61,934 USD as of 8:45 am July 6, 2026, according to Cointelegraph."},
+        {"Fact": "4. Bitcoin’s current price is roughly in the low-$60k range."},
+        {"Fact": "5. Bitcoin’s price can vary by a couple of thousand dollars."]
+    }
+}[0m
+[32m2026-07-07 00:20:29.850[0m | [1mINFO    [0m | [36muptrain.operators.language.llm[0m:[36masync_process_payload[0m:[36m162[0m - [1mRetrying for payload 84[0m
+[32m2026-07-07 00:20:30.420[0m | [31m[1mERROR   [0m | [36muptrain.operators.language.llm[0m:[36mparse_json[0m:[36m55[0m - [31m[1mError when parsing JSON: <string>:7 Unexpected "]" at column 80[0m
+[32m2026-07-07 00:20:30.420[0m | [31m[1mERROR   [0m | [36muptrain.operators.language.llm[0m:[36masync_process_payload[0m:[36m103[0m - [31m[1mError when sending request to LLM API: Response doesn't pass the validation func.
+Response: {
+    "Facts": [
+        {"Fact": "1. Bitcoin’s price is currently around $62-$64k."},
+        {"Fact": "2. YCharts lists Bitcoin’s price at $63,546 USD on July 6, 2026."},
+        {"Fact": "3. A market-snapshot shows Bitcoin’s price at $61,934 USD as of 8:45 am July 6, 2026, according to Cointelegraph."},
+        {"Fact": "4. Bitcoin’s price is roughly in the low-$60k range."},
+        {"Fact": "5. Bitcoin’s price can vary by a couple of thousand dollars."]
+    }
+}[0m
+[32m2026-07-07 00:20:30.420[0m | [1mINFO    [0m | [36muptrain.operators.language.llm[0m:[36masync_process_payload[0m:[36m162[0m - [1mRetrying for payload 84[0m
+[32m2026-07-07 00:20:30.815[0m | [31m[1mERROR   [0m | [36muptrain.operators.language.llm[0m:[36mparse_json[0m:[36m55[0m - [31m[1mError when parsing JSON: <string>:7 Unexpected "]" at column 82[0m
+[32m2026-07-07 00:20:30.815[0m | [31m[1mERROR   [0m | [36muptrain.operators.language.llm[0m:[36masync_process_payload[0m:[36m103[0m - [31m[1mError when sending request to LLM API: Response doesn't pass the validation func.
+Response: {
+    "Facts": [
+        {"Fact": "1. A veggie-loaded avocado toast can be a quick breakfast idea."},
+        {"Fact": "2. Adding hemp seeds to avocado toast provides protein."},
+        {"Fact": "3. The mentioned avocado toast can be prepared in under 5 minutes."},
+        {"Fact": "4. The veggie-loaded avocado toast can help keep you fueled."},
+        {"Fact": "5. The mentioned breakfast idea is suitable for a night shift."]
+    }
+}[0m
+[32m2026-07-07 00:20:30.815[0m | [1mINFO    [0m | [36muptrain.operators.language.llm[0m:[36masync_process_payload[0m:[36m162[0m - [1mRetrying for payload 3[0m
+[32m2026-07-07 00:20:30.932[0m | [31m[1mERROR   [0m | [36muptrain.operators.language.llm[0m:[36mparse_json[0m:[36m55[0m - [31m[1mError when parsing JSON: <string>:7 Unexpected "]" at column 80[0m
+[32m2026-07-07 00:20:30.932[0m | [31m[1mERROR   [0m | [36muptrain.operators.language.llm[0m:[36masync_process_payload[0m:[36m103[0m - [31m[1mError when sending request to LLM API: Response doesn't pass the validation func.
+Response: {
+    "Facts": [
+        {"Fact": "1. Bitcoin’s price is currently around $62-$64k."},
+        {"Fact": "2. YCharts lists Bitcoin's price at $63,546 USD on July 6, 2026."},
+        {"Fact": "3. A market-snapshot shows Bitcoin's price at $61,934 USD as of 8:45 am July 6, 2026, according to Cointelegraph."},
+        {"Fact": "4. Bitcoin's price is roughly in the low-$60k range."},
+        {"Fact": "5. Bitcoin's price can vary by a couple of thousand dollars."]
+    }
+}[0m
+[32m2026-07-07 00:20:30.932[0m | [1mINFO    [0m | [36muptrain.operators.language.llm[0m:[36masync_process_payload[0m:[36m162[0m - [1mRetrying for payload 84[0m
+100%|##########| 110/110 [00:06<00:00, 10.16it/s]100%|##########| 110/110 [00:06<00:00, 17.41it/s]
+[32m2026-07-07 00:20:34.352[0m | [31m[1mERROR   [0m | [36muptrain.operators.language.llm[0m:[36mparse_json[0m:[36m55[0m - [31m[1mError when parsing JSON: <string>:7 Unexpected "]" at column 80[0m
+  0%|          | 0/110 [00:00<?, ?it/s]  1%|          | 1/110 [00:00<01:13,  1.49it/s]  6%|6         | 7/110 [00:00<00:09, 10.84it/s] 20%|##        | 22/110 [00:00<00:02, 35.11it/s] 27%|##7       | 30/110 [00:01<00:01, 43.15it/s] 34%|###3      | 37/110 [00:01<00:01, 47.04it/s] 43%|####2     | 47/110 [00:01<00:01, 54.97it/s] 49%|####9     | 54/110 [00:01<00:01, 43.11it/s] 55%|#####4    | 60/110 [00:02<00:02, 21.85it/s] 59%|#####9    | 65/110 [00:04<00:06,  7.50it/s] 62%|######1   | 68/110 [00:06<00:09,  4.56it/s] 65%|######4   | 71/110 [00:08<00:11,  3.27it/s] 66%|######6   | 73/110 [00:09<00:13,  2.68it/s] 68%|######8   | 75/110 [00:10<00:13,  2.51it/s] 69%|######9   | 76/110 [00:11<00:14,  2.40it/s] 70%|#######   | 77/110 [00:12<00:15,  2.15it/s] 71%|#######   | 78/110 [00:12<00:15,  2.06it/s] 72%|#######1  | 79/110 [00:13<00:16,  1.86it/s] 73%|#######2  | 80/110 [00:14<00:18,  1.66it/s] 74%|#######3  | 81/110 [00:15<00:18,  1.55it/s] 75%|#######4  | 82/110 [00:15<00:16,  1.69it/s] 75%|#######5  | 83/110 [00:16<00:16,  1.66it/s] 76%|#######6  | 84/110 [00:17<00:17,  1.48it/s] 77%|#######7  | 85/110 [00:17<00:15,  1.65it/s] 78%|#######8  | 86/110 [00:18<00:15,  1.56it/s] 79%|#######9  | 87/110 [00:18<00:15,  1.51it/s] 80%|########  | 88/110 [00:19<00:15,  1.41it/s] 81%|########  | 89/110 [00:20<00:14,  1.48it/s] 82%|########1 | 90/110 [00:21<00:14,  1.36it/s] 83%|########2 | 91/110 [00:21<00:13,  1.40it/s] 84%|########3 | 92/110 [00:22<00:13,  1.34it/s] 85%|########4 | 93/110 [00:23<00:12,  1.33it/s] 85%|########5 | 94/110 [00:24<00:13,  1.20it/s] 86%|########6 | 95/110 [00:24<00:10,  1.46it/s] 87%|########7 | 96/110 [00:25<00:08,  1.66it/s] 88%|########8 | 97/110 [00:26<00:09,  1.39it/s] 89%|########9 | 98/110 [00:26<00:07,  1.61it/s] 90%|######### | 99/110 [00:27<00:07,  1.57it/s] 91%|######### | 100/110 [00:28<00:07,  1.33it/s] 92%|#########1| 101/110 [00:28<00:06,  1.40it/s] 93%|#########2| 102/110 [00:29<00:04,  1.62it/s] 94%|#########3| 103/110 [00:30<00:04,  1.40it/s] 95%|#########4| 104/110 [00:32<00:06,  1.14s/it] 95%|#########5| 105/110 [00:34<00:07,  1.45s/it] 96%|#########6| 106/110 [00:36<00:06,  1.74s/it] 97%|#########7| 107/110 [00:39<00:05,  1.93s/it] 98%|#########8| 108/110 [00:41<00:04,  2.04s/it] 99%|#########9| 109/110 [00:44<00:02,  2.30s/it]100%|##########| 110/110 [00:48<00:00,  2.83s/it]100%|##########| 110/110 [00:48<00:00,  2.26it/s]
+C:\Users\Mahar\OneDrive\Desktop\KaranC++\jarvis\.venv\Lib\site-packages\numpy\_core\fromnumeric.py:3824: RuntimeWarning: Mean of empty slice
+  return _methods._mean(a, axis=axis, dtype=dtype,
+C:\Users\Mahar\OneDrive\Desktop\KaranC++\jarvis\.venv\Lib\site-packages\numpy\_core\_methods.py:142: RuntimeWarning: invalid value encountered in scalar divide
+  ret = ret.dtype.type(ret / rcount)
+[32m2026-07-07 00:21:24.325[0m | [1mINFO    [0m | [36muptrain.framework.evalllm[0m:[36mevaluate[0m:[36m376[0m - [1mLocal server not running, start the server to log data and visualize in the dashboard![0m
+Scoring ground_truth_adherence for profile/memory/style queries...
+  0%|          | 0/5 [00:00<?, ?it/s] 20%|##        | 1/5 [00:00<00:02,  1.73it/s] 60%|######    | 3/5 [00:00<00:00,  5.02it/s]100%|##########| 5/5 [00:00<00:00,  6.41it/s]
+[32m2026-07-07 00:21:29.424[0m | [1mINFO    [0m | [36muptrain.framework.evalllm[0m:[36mevaluate[0m:[36m376[0m - [1mLocal server not running, start the server to log data and visualize in the dashboard![0m
+  0%|          | 0/5 [00:00<?, ?it/s] 20%|##        | 1/5 [00:00<00:02,  1.51it/s] 60%|######    | 3/5 [00:00<00:00,  4.39it/s]100%|##########| 5/5 [00:01<00:00,  5.97it/s]100%|##########| 5/5 [00:01<00:00,  4.83it/s]
+[32m2026-07-07 00:21:34.793[0m | [1mINFO    [0m | [36muptrain.framework.evalllm[0m:[36mevaluate[0m:[36m376[0m - [1mLocal server not running, start the server to log data and visualize in the dashboard![0m
+  0%|          | 0/5 [00:00<?, ?it/s] 20%|##        | 1/5 [00:00<00:02,  1.35it/s] 60%|######    | 3/5 [00:00<00:00,  4.30it/s]100%|##########| 5/5 [00:00<00:00,  5.61it/s]
+[32m2026-07-07 00:21:39.992[0m | [1mINFO    [0m | [36muptrain.framework.evalllm[0m:[36mevaluate[0m:[36m376[0m - [1mLocal server not running, start the server to log data and visualize in the dashboard![0m
+  0%|          | 0/5 [00:00<?, ?it/s] 20%|##        | 1/5 [00:00<00:02,  1.96it/s] 40%|####      | 2/5 [00:00<00:00,  3.71it/s]100%|##########| 5/5 [00:00<00:00,  6.70it/s]100%|##########| 5/5 [00:00<00:00,  5.46it/s]
+[32m2026-07-07 00:21:45.176[0m | [1mINFO    [0m | [36muptrain.framework.evalllm[0m:[36mevaluate[0m:[36m376[0m - [1mLocal server not running, start the server to log data and visualize in the dashboard![0m
+  0%|          | 0/5 [00:00<?, ?it/s] 20%|##        | 1/5 [00:00<00:02,  1.85it/s] 40%|####      | 2/5 [00:00<00:00,  3.42it/s]100%|##########| 5/5 [00:00<00:00,  7.29it/s]
+[32m2026-07-07 00:21:50.167[0m | [1mINFO    [0m | [36muptrain.framework.evalllm[0m:[36mevaluate[0m:[36m376[0m - [1mLocal server not running, start the server to log data and visualize in the dashboard![0m
+  0%|          | 0/5 [00:00<?, ?it/s] 20%|##        | 1/5 [00:00<00:02,  1.73it/s] 60%|######    | 3/5 [00:00<00:00,  5.09it/s]100%|##########| 5/5 [00:00<00:00,  6.73it/s]
+[32m2026-07-07 00:21:55.223[0m | [1mINFO    [0m | [36muptrain.framework.evalllm[0m:[36mevaluate[0m:[36m376[0m - [1mLocal server not running, start the server to log data and visualize in the dashboard![0m
+  0%|          | 0/5 [00:00<?, ?it/s] 20%|##        | 1/5 [00:00<00:02,  1.95it/s]100%|##########| 5/5 [00:00<00:00,  9.18it/s]
+[32m2026-07-07 00:22:00.077[0m | [1mINFO    [0m | [36muptrain.framework.evalllm[0m:[36mevaluate[0m:[36m376[0m - [1mLocal server not running, start the server to log data and visualize in the dashboard![0m
+  0%|          | 0/5 [00:00<?, ?it/s] 20%|##        | 1/5 [00:00<00:02,  1.91it/s] 80%|########  | 4/5 [00:00<00:00,  7.24it/s]100%|##########| 5/5 [00:01<00:00,  4.53it/s]
+[32m2026-07-07 00:22:05.512[0m | [1mINFO    [0m | [36muptrain.framework.evalllm[0m:[36mevaluate[0m:[36m376[0m - [1mLocal server not running, start the server to log data and visualize in the dashboard![0m
+  0%|          | 0/5 [00:00<?, ?it/s] 20%|##        | 1/5 [00:00<00:01,  2.05it/s] 40%|####      | 2/5 [00:00<00:00,  3.58it/s]100%|##########| 5/5 [00:00<00:00,  7.46it/s]
+[32m2026-07-07 00:22:10.486[0m | [1mINFO    [0m | [36muptrain.framework.evalllm[0m:[36mevaluate[0m:[36m376[0m - [1mLocal server not running, start the server to log data and visualize in the dashboard![0m
+  0%|          | 0/5 [00:00<?, ?it/s] 20%|##        | 1/5 [00:00<00:01,  2.84it/s]100%|##########| 5/5 [00:00<00:00, 11.67it/s]100%|##########| 5/5 [00:00<00:00,  9.84it/s]
+[32m2026-07-07 00:22:15.322[0m | [1mINFO    [0m | [36muptrain.framework.evalllm[0m:[36mevaluate[0m:[36m376[0m - [1mLocal server not running, start the server to log data and visualize in the dashboard![0m
+  0%|          | 0/5 [00:00<?, ?it/s] 20%|##        | 1/5 [00:00<00:01,  2.03it/s]100%|##########| 5/5 [00:00<00:00,  9.45it/s]
+[32m2026-07-07 00:22:20.181[0m | [1mINFO    [0m | [36muptrain.framework.evalllm[0m:[36mevaluate[0m:[36m376[0m - [1mLocal server not running, start the server to log data and visualize in the dashboard![0m
+  0%|          | 0/5 [00:00<?, ?it/s] 20%|##        | 1/5 [00:00<00:01,  2.15it/s] 60%|######    | 3/5 [00:00<00:00,  6.33it/s]100%|##########| 5/5 [00:00<00:00,  6.39it/s]100%|##########| 5/5 [00:00<00:00,  5.71it/s]
+[32m2026-07-07 00:22:25.386[0m | [1mINFO    [0m | [36muptrain.framework.evalllm[0m:[36mevaluate[0m:[36m376[0m - [1mLocal server not running, start the server to log data and visualize in the dashboard![0m
+  0%|          | 0/5 [00:00<?, ?it/s] 20%|##        | 1/5 [00:00<00:01,  2.28it/s] 80%|########  | 4/5 [00:00<00:00,  7.77it/s]100%|##########| 5/5 [00:00<00:00,  7.72it/s]
+[32m2026-07-07 00:22:30.342[0m | [1mINFO    [0m | [36muptrain.framework.evalllm[0m:[36mevaluate[0m:[36m376[0m - [1mLocal server not running, start the server to log data and visualize in the dashboard![0m
+  0%|          | 0/5 [00:00<?, ?it/s] 20%|##        | 1/5 [00:00<00:02,  1.75it/s] 60%|######    | 3/5 [00:00<00:00,  4.84it/s]100%|##########| 5/5 [00:00<00:00,  6.49it/s]
+[32m2026-07-07 00:22:35.423[0m | [1mINFO    [0m | [36muptrain.framework.evalllm[0m:[36mevaluate[0m:[36m376[0m - [1mLocal server not running, start the server to log data and visualize in the dashboard![0m
+  0%|          | 0/5 [00:00<?, ?it/s] 20%|##        | 1/5 [00:00<00:02,  1.99it/s] 40%|####      | 2/5 [00:00<00:01,  2.94it/s]100%|##########| 5/5 [00:00<00:00,  6.14it/s]
+[32m2026-07-07 00:22:40.590[0m | [1mINFO    [0m | [36muptrain.framework.evalllm[0m:[36mevaluate[0m:[36m376[0m - [1mLocal server not running, start the server to log data and visualize in the dashboard![0m
+  0%|          | 0/5 [00:00<?, ?it/s] 20%|##        | 1/5 [00:00<00:02,  1.88it/s] 80%|########  | 4/5 [00:00<00:00,  7.78it/s]100%|##########| 5/5 [00:00<00:00,  7.61it/s]
+[32m2026-07-07 00:22:45.566[0m | [1mINFO    [0m | [36muptrain.framework.evalllm[0m:[36mevaluate[0m:[36m376[0m - [1mLocal server not running, start the server to log data and visualize in the dashboard![0m
+
+Saved 110 rows to C:\Users\Mahar\OneDrive\Desktop\KaranC++\jarvis\eval\results\eval_scores_20260707_002245.csv
+
+Mean score per ablation config:
+               score_context_relevance  ...  score_ground_truth_adherence
+ablation                                ...                              
+full                             0.182  ...                         0.812
+no_memory                        0.182  ...                         0.438
+no_prefs                         0.182  ...                         0.812
+no_style                         0.182  ...                         0.875
+no_web_search                    0.000  ...                         0.875
+
+[5 rows x 5 columns]
+
+Mean delta (full - ablated) per ablation config — feature contribution:
+               delta_context_relevance  ...  delta_ground_truth_adherence
+ablation                                ...                              
+full                             0.000  ...                         0.000
+no_memory                        0.000  ...                         0.375
+no_prefs                         0.000  ...                         0.000
+no_style                         0.000  ...                        -0.062
+no_web_search                    0.182  ...                        -0.062
+
+[5 rows x 5 columns]
+
+personalization_used rate by ablation x category:
+ablation       category
+full           general     0.500
+               memory      1.000
+               profile     0.714
+               style       0.750
+               web         0.750
+no_memory      general     0.000
+               memory      0.000
+               profile     0.286
+               style       0.000
+               web         0.250
+no_prefs       general     0.500
+               memory      1.000
+               profile     0.857
+               style       0.500
+               web         1.000
+no_style       general     0.000
+               memory      1.000
+               profile     0.857
+               style       0.750
+               web         0.500
+no_web_search  general     0.500
+               memory      1.000
+               profile     0.857
+               style       0.500
+               web         0.750
+Name: personalization_used, dtype: float64

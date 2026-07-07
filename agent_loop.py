@@ -1,9 +1,15 @@
 """The agent loop: ties together LLM + tools + conversation memory."""
+import sys
 from langchain_groq import ChatGroq
 from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage, AIMessage
 from config import LLM_MODEL, MAX_TOOL_TURNS
 from tools import TOOLS, TOOLS_BY_NAME
 from system_prompt import build_system_message
+
+# Non-ASCII "thinking" text (e.g. →) crashes on Windows when stdout isn't a
+# UTF-8 console — e.g. piped/redirected to a file, as the eval harness does.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(errors="replace")
 
 # ANSI colors for terminal — dim gray for Jarvis's internal "thinking" lines
 DIM = "\033[2m"
