@@ -17,7 +17,8 @@ import { MOCK_DIRECTIVES, MOCK_DOCUMENTS, COMMAND_ACTIONS } from "./lib/mockData
 
 function App() {
   const { accent, setAccent } = useAccentColor();
-  const { connected, vitals, toolCards, wireEvents, agentBusy, sendText } = useJarvisSocket();
+  const { connected, vitals, toolCards, wireEvents, agentBusy, sendText, sendAudio } =
+    useJarvisSocket();
 
   return (
     <div className="h-screen w-screen bg-[var(--bg)]">
@@ -44,7 +45,7 @@ function App() {
         rightPanels={
           <>
             <CommandDeck actions={COMMAND_ACTIONS} />
-            <AudioIO />
+            <AudioIO onRecorded={sendAudio} disabled={agentBusy || !connected} />
             <AIWire events={wireEvents} />
           </>
         }

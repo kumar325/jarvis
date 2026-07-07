@@ -1,6 +1,9 @@
 """Voice I/O: recording, transcription, text-to-speech."""
 import contextlib
 import io
+import tempfile
+from pathlib import Path
+
 import sounddevice as sd
 from scipy.io.wavfile import write
 from scipy.io import wavfile
@@ -45,3 +48,23 @@ def speak(text):
     engine.say(text)
     engine.runAndWait()
     engine.stop()
+
+
+def speak_to_bytes(text):
+    """Same voice/rate as speak(), but rendered to a wav file and returned as bytes
+    instead of played through the OS speakers — for the browser frontend's playback."""
+    engine = pyttsx3.init()
+    voices = engine.getProperty('voices')
+    engine.setProperty('voice', voices[VOICE_INDEX].id)
+    engine.setProperty('rate', SPEECH_RATE)
+    engine.setProperty('volume', 1.0)
+
+    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
+        path = f.name
+    try:
+        engine.save_to_file(text, path)
+        engine.runAndWait()
+        engine.stop()
+        return Path(path).read_bytes()
+    finally:
+        Path(path).unlink(missing_ok=True)
