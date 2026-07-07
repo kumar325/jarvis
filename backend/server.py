@@ -32,6 +32,7 @@ from .ws_messages import (
     ErrorMessage,
     ToolCallMessage,
     ToolResultMessage,
+    TranscriptMessage,
     UserTextMessage,
     VitalsUpdateMessage,
 )
@@ -169,6 +170,7 @@ async def ws_endpoint(websocket: WebSocket):
                         ErrorMessage(message="couldn't hear anything in that recording").model_dump()
                     )
                     continue
+                await send_json_safe(TranscriptMessage(text=user_text).model_dump())
                 await handle_user_text(user_text)
 
             elif message.get("text") is not None:

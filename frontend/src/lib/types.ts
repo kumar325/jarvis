@@ -33,6 +33,7 @@ export interface ToolCallCard {
 
 export interface WireEvent {
   id: string;
+  speaker: "USER" | "JARVIS";
   text: string;
   timestamp: string;
 }

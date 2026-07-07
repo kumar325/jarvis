@@ -5,6 +5,7 @@ export function useAudioPlayback() {
   const ctxRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const dataRef = useRef<Uint8Array<ArrayBuffer> | null>(null);
+  const sourceRef = useRef<AudioBufferSourceNode | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
 
   const ensureGraph = useCallback(() => {
@@ -22,8 +23,25 @@ export function useAudioPlayback() {
     return { ctx, analyser: analyserRef.current };
   }, []);
 
+  const stop = useCallback(() => {
+    const source = sourceRef.current;
+    sourceRef.current = null;
+    if (source) {
+      try {
+        source.stop();
+      } catch {
+        // already stopped/ended — nothing to do
+      }
+      source.disconnect();
+    }
+    setIsPlaying(false);
+  }, []);
+
   const play = useCallback(
     async (bytes: ArrayBuffer) => {
+      // Never let two replies play at once — cut off whatever's currently speaking.
+      stop();
+
       const { ctx, analyser } = ensureGraph();
       if (ctx.state === "suspended") await ctx.resume();
 
@@ -31,11 +49,15 @@ export function useAudioPlayback() {
       const source = ctx.createBufferSource();
       source.buffer = audioBuffer;
       source.connect(analyser);
-      source.onended = () => setIsPlaying(false);
+      source.onended = () => {
+        setIsPlaying(false);
+        if (sourceRef.current === source) sourceRef.current = null;
+      };
+      sourceRef.current = source;
       setIsPlaying(true);
       source.start();
     },
-    [ensureGraph]
+    [ensureGraph, stop]
   );
 
   const getLevel = useCallback(() => {
@@ -45,5 +67,5 @@ export function useAudioPlayback() {
     return readLevel(analyser, data);
   }, []);
 
-  return { play, isPlaying, getLevel };
+  return { play, stop, isPlaying, getLevel };
 }

@@ -11,6 +11,7 @@ type ServerMessage =
   | { type: "directives_update"; directives: Directive[] }
   | { type: "documents_update"; documents: DocumentEntry[] }
   | { type: "assistant_text"; text: string }
+  | { type: "transcript"; text: string }
   | { type: "tool_call"; id: string; tool_name: string; args: Record<string, unknown> }
   | { type: "tool_result"; id: string; tool_name: string; preview: string }
   | { type: "error"; message: string };
@@ -30,16 +31,18 @@ export function useJarvisSocket() {
   const wsRef = useRef<WebSocket | null>(null);
   const agentBusyRef = useRef(false);
   const wireIdRef = useRef(0);
-  const { play, isPlaying, getLevel: getPlaybackLevel } = useAudioPlayback();
+  const { play, stop: stopPlayback, isPlaying, getLevel: getPlaybackLevel } = useAudioPlayback();
 
   const setBusy = useCallback((busy: boolean) => {
     agentBusyRef.current = busy;
     setAgentBusy(busy);
   }, []);
 
-  const pushWireEvent = useCallback((text: string) => {
+  const pushWireEvent = useCallback((speaker: "USER" | "JARVIS", text: string) => {
     wireIdRef.current += 1;
-    setWireEvents((prev) => [{ id: `w${wireIdRef.current}`, text, timestamp: timestamp() }, ...prev].slice(0, 20));
+    setWireEvents((prev) =>
+      [{ id: `w${wireIdRef.current}`, speaker, text, timestamp: timestamp() }, ...prev].slice(0, 20)
+    );
   }, []);
 
   useEffect(() => {
@@ -100,18 +103,22 @@ export function useJarvisSocket() {
             ]);
             break;
           case "tool_result":
+            // Tool trace stays in the floating ToolCallCards only — not a chat message.
             setToolCards((prev) =>
               prev.map((c) => (c.id === msg.id ? { ...c, preview: msg.preview } : c))
             );
-            pushWireEvent(`${msg.tool_name} → ${msg.preview}`);
+            break;
+          case "transcript":
+            // What a voice recording was transcribed to — the user's turn in the log.
+            pushWireEvent("USER", msg.text);
             break;
           case "assistant_text":
             setBusy(false);
-            pushWireEvent(`Jarvis: ${msg.text}`);
+            pushWireEvent("JARVIS", msg.text);
             break;
           case "error":
             setBusy(false);
-            pushWireEvent(`error: ${msg.message}`);
+            pushWireEvent("JARVIS", msg.message);
             break;
         }
       };
@@ -131,14 +138,18 @@ export function useJarvisSocket() {
       const ws = wsRef.current;
       if (!ws || ws.readyState !== WebSocket.OPEN || agentBusyRef.current) return;
       try {
+        // A new request always interrupts whatever Jarvis is currently speaking —
+        // never let two replies play at once.
+        stopPlayback();
         setBusy(true);
+        pushWireEvent("USER", text);
         ws.send(JSON.stringify({ type: "user_text", text }));
       } catch (err) {
         console.error("failed to send text", err);
         setBusy(false);
       }
     },
-    [setBusy]
+    [setBusy, pushWireEvent, stopPlayback]
   );
 
   const sendAudio = useCallback(
@@ -146,6 +157,7 @@ export function useJarvisSocket() {
       const ws = wsRef.current;
       if (!ws || ws.readyState !== WebSocket.OPEN || agentBusyRef.current) return;
       try {
+        stopPlayback();
         setBusy(true);
         ws.send(wav);
       } catch (err) {
@@ -153,7 +165,7 @@ export function useJarvisSocket() {
         setBusy(false);
       }
     },
-    [setBusy]
+    [setBusy, stopPlayback]
   );
 
   return {

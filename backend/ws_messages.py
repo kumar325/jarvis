@@ -14,6 +14,13 @@ class AssistantTextMessage(BaseModel):
     text: str
 
 
+class TranscriptMessage(BaseModel):
+    """Server -> client: what a voice recording was transcribed to, so the frontend can
+    show it as the user's turn in the wire log (it never sees the audio's text otherwise)."""
+    type: Literal["transcript"] = "transcript"
+    text: str
+
+
 class ToolCallMessage(BaseModel):
     type: Literal["tool_call"] = "tool_call"
     id: str
