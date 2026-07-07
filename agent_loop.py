@@ -25,7 +25,14 @@ def _think(message):
     print(f"{DIM}Jarvis (thinking): {message}{RESET}", flush=True)
 
 
-def ask_jarvis(user_text):
+def ask_jarvis(user_text, on_event=None):
+    def _emit(event):
+        if on_event:
+            try:
+                on_event(event)
+            except Exception:
+                pass
+
     system_msg = build_system_message(user_text)
     messages = [system_msg] + [m for m in conversation if not isinstance(m, SystemMessage)]
     messages.append(HumanMessage(content=user_text))
@@ -56,6 +63,8 @@ def ask_jarvis(user_text):
             return final_content
 
         for call in response.tool_calls:
+            _emit({"type": "tool_call", "id": call["id"], "tool_name": call["name"], "args": call.get("args", {})})
+
             tool_fn = TOOLS_BY_NAME.get(call["name"])
             if tool_fn is None:
                 result = f"Unknown tool: {call['name']}"
@@ -70,6 +79,7 @@ def ask_jarvis(user_text):
             if len(preview) > 120:
                 preview = preview[:120] + "..."
             _think(f"used {call['name']} → {preview}")
+            _emit({"type": "tool_result", "id": call["id"], "tool_name": call["name"], "preview": preview})
 
             messages.append(ToolMessage(content=str(result), tool_call_id=call["id"]))
 

@@ -7,12 +7,6 @@ interface StatusChip {
   status: SystemStatus;
 }
 
-const STATUS_CHIPS: StatusChip[] = [
-  { label: "CORE", status: "IDLE" },
-  { label: "LINK", status: "ONLINE" },
-  { label: "RUNNER", status: "ALIVE" },
-];
-
 function statusColor(status: SystemStatus) {
   switch (status) {
     case "ONLINE":
@@ -20,6 +14,8 @@ function statusColor(status: SystemStatus) {
       return "bg-emerald-400";
     case "BUSY":
       return "bg-accent";
+    case "OFFLINE":
+      return "bg-red-400";
     default:
       return "bg-slate-500";
   }
@@ -28,10 +24,17 @@ function statusColor(status: SystemStatus) {
 interface Props {
   accent: string;
   onAccentChange: (hex: string) => void;
+  linkStatus?: SystemStatus;
 }
 
-export function ClockStatus({ accent, onAccentChange }: Props) {
+export function ClockStatus({ accent, onAccentChange, linkStatus = "ONLINE" }: Props) {
   const [now, setNow] = useState(new Date());
+
+  const statusChips: StatusChip[] = [
+    { label: "CORE", status: "IDLE" },
+    { label: "LINK", status: linkStatus },
+    { label: "RUNNER", status: "ALIVE" },
+  ];
 
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 1000);
@@ -58,7 +61,7 @@ export function ClockStatus({ accent, onAccentChange }: Props) {
         <ColorPicker accent={accent} onChange={onAccentChange} />
       </div>
       <div className="flex gap-2">
-        {STATUS_CHIPS.map((chip) => (
+        {statusChips.map((chip) => (
           <div
             key={chip.label}
             className="hud-panel flex items-center gap-1.5 px-2 py-1 rounded text-[0.6rem] tracking-wider"

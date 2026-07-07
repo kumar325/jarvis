@@ -1,0 +1,38 @@
+"""Typed schemas for the WebSocket message contract between the HUD frontend and this backend."""
+from typing import Any, Literal
+from pydantic import BaseModel
+
+
+class UserTextMessage(BaseModel):
+    """Client -> server: a text query to run through ask_jarvis()."""
+    type: Literal["user_text"] = "user_text"
+    text: str
+
+
+class AssistantTextMessage(BaseModel):
+    type: Literal["assistant_text"] = "assistant_text"
+    text: str
+
+
+class ToolCallMessage(BaseModel):
+    type: Literal["tool_call"] = "tool_call"
+    id: str
+    tool_name: str
+    args: dict[str, Any]
+
+
+class ToolResultMessage(BaseModel):
+    type: Literal["tool_result"] = "tool_result"
+    id: str
+    tool_name: str
+    preview: str
+
+
+class VitalsUpdateMessage(BaseModel):
+    type: Literal["vitals_update"] = "vitals_update"
+    vitals: list[dict[str, Any]]
+
+
+class ErrorMessage(BaseModel):
+    type: Literal["error"] = "error"
+    message: str

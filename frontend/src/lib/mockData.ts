@@ -1,11 +1,4 @@
-import type {
-  CommandAction,
-  DocumentEntry,
-  Directive,
-  StatCardData,
-  ToolCallCard,
-  WireEvent,
-} from "./types";
+import type { CommandAction, DocumentEntry, Directive, StatCardData } from "./types";
 
 export const MOCK_VITALS: StatCardData[] = [
   {
@@ -64,16 +57,4 @@ export const COMMAND_ACTIONS: CommandAction[] = [
   { id: "yt_week", label: "YT WEEK" },
   { id: "plan_tmrw", label: "PLAN TMRW" },
   { id: "vault_clean", label: "VAULT CLEAN" },
-];
-
-export const MOCK_WIRE: WireEvent[] = [
-  { id: "w1", text: "no_web_search ablation zeroed context_relevance (0.182 -> 0.0)", timestamp: "09:12" },
-  { id: "w2", text: "style_tracker re-analyzed after 5 utterances", timestamp: "08:58" },
-  { id: "w3", text: "new preference pair saved: rating=up", timestamp: "08:45" },
-  { id: "w4", text: "Tavily credit balance: 1,240 remaining", timestamp: "08:30" },
-];
-
-export const MOCK_TOOL_CARDS: ToolCallCard[] = [
-  { id: "t1", toolName: "web_search", preview: "query: 'NeurIPS 2026 workshop deadlines'", timestamp: "09:15" },
-  { id: "t2", toolName: "remember", preview: "fact: 'prefers concise answers'", timestamp: "09:10" },
 ];

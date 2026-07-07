@@ -1,4 +1,5 @@
 import { useAccentColor } from "./hooks/useAccentColor";
+import { useJarvisSocket } from "./hooks/useJarvisSocket";
 import { Header } from "./components/layout/Header";
 import { ClockStatus } from "./components/layout/ClockStatus";
 import { Shell } from "./components/layout/Shell";
@@ -10,18 +11,13 @@ import { AudioIO } from "./components/panels/AudioIO";
 import { AIWire } from "./components/panels/AIWire";
 import { OrbVisualization } from "./components/center/OrbVisualization";
 import { ToolCallCards } from "./components/center/ToolCallCards";
+import { CommandInput } from "./components/center/CommandInput";
 import { PrimaryDirective } from "./components/center/PrimaryDirective";
-import {
-  MOCK_VITALS,
-  MOCK_DIRECTIVES,
-  MOCK_DOCUMENTS,
-  COMMAND_ACTIONS,
-  MOCK_WIRE,
-  MOCK_TOOL_CARDS,
-} from "./lib/mockData";
+import { MOCK_DIRECTIVES, MOCK_DOCUMENTS, COMMAND_ACTIONS } from "./lib/mockData";
 
 function App() {
   const { accent, setAccent } = useAccentColor();
+  const { connected, vitals, toolCards, wireEvents, agentBusy, sendText } = useJarvisSocket();
 
   return (
     <div className="h-screen w-screen bg-[var(--bg)]">
@@ -31,10 +27,16 @@ function App() {
 
       <Shell
         header={<Header />}
-        clock={<ClockStatus accent={accent} onAccentChange={setAccent} />}
+        clock={
+          <ClockStatus
+            accent={accent}
+            onAccentChange={setAccent}
+            linkStatus={connected ? "ONLINE" : "OFFLINE"}
+          />
+        }
         leftPanels={
           <>
-            <SystemVitals vitals={MOCK_VITALS} />
+            <SystemVitals vitals={vitals} />
             <Directives directives={MOCK_DIRECTIVES} />
             <Documents documents={MOCK_DOCUMENTS} />
           </>
@@ -43,11 +45,12 @@ function App() {
           <>
             <CommandDeck actions={COMMAND_ACTIONS} />
             <AudioIO />
-            <AIWire events={MOCK_WIRE} />
+            <AIWire events={wireEvents} />
           </>
         }
-        center={<OrbVisualization />}
-        toolCards={<ToolCallCards cards={MOCK_TOOL_CARDS} />}
+        center={<OrbVisualization active={agentBusy} amplitude={agentBusy ? 0.4 : 0} />}
+        toolCards={<ToolCallCards cards={toolCards} />}
+        commandInput={<CommandInput onSubmit={sendText} disabled={agentBusy || !connected} />}
         primaryDirective={
           <PrimaryDirective
             directive="MAXIMIZE PERSONALIZATION SIGNAL"

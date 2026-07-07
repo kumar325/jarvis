@@ -37,4 +37,4 @@ export interface WireEvent {
   timestamp: string;
 }
 
-export type SystemStatus = "IDLE" | "ONLINE" | "ALIVE" | "BUSY";
+export type SystemStatus = "IDLE" | "ONLINE" | "ALIVE" | "BUSY" | "OFFLINE";

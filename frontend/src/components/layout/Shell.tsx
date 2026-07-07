@@ -7,6 +7,7 @@ interface Props {
   rightPanels: ReactNode;
   center: ReactNode;
   toolCards: ReactNode;
+  commandInput: ReactNode;
   primaryDirective: ReactNode;
 }
 
@@ -17,6 +18,7 @@ export function Shell({
   rightPanels,
   center,
   toolCards,
+  commandInput,
   primaryDirective,
 }: Props) {
   return (
@@ -37,7 +39,10 @@ export function Shell({
         {rightPanels}
       </div>
 
-      <div className="col-start-2 row-start-3 flex justify-center pb-2">{primaryDirective}</div>
+      <div className="col-start-2 row-start-3 flex flex-col items-center gap-3 pb-2">
+        {commandInput}
+        {primaryDirective}
+      </div>
     </div>
   );
 }
