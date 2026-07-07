@@ -1,16 +1,24 @@
 import { useCallback, useRef, useState } from "react";
 import { blobToWav16kMono } from "../lib/wav-encode";
+import { readLevel } from "../lib/audio-level";
 
 export function useAudioCapture(onRecorded: (wav: ArrayBuffer) => void) {
   const [recording, setRecording] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
+  const levelCtxRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const dataRef = useRef<Uint8Array<ArrayBuffer> | null>(null);
 
   const cleanup = useCallback(() => {
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
     mediaRecorderRef.current = null;
+    analyserRef.current = null;
+    dataRef.current = null;
+    levelCtxRef.current?.close().catch(() => {});
+    levelCtxRef.current = null;
     setRecording(false);
   }, []);
 
@@ -29,6 +37,27 @@ export function useAudioCapture(onRecorded: (wav: ArrayBuffer) => void) {
 
     streamRef.current = stream;
     chunksRef.current = [];
+
+    // Tap the mic stream for a live amplitude reading (orb reactivity) without playing
+    // it back — route through a muted gain so the analyser stays active cross-browser,
+    // but nothing is audible.
+    try {
+      const levelCtx = new AudioContext();
+      const source = levelCtx.createMediaStreamSource(stream);
+      const analyser = levelCtx.createAnalyser();
+      analyser.fftSize = 256;
+      const silentGain = levelCtx.createGain();
+      silentGain.gain.value = 0;
+      source.connect(analyser);
+      analyser.connect(silentGain);
+      silentGain.connect(levelCtx.destination);
+
+      levelCtxRef.current = levelCtx;
+      analyserRef.current = analyser;
+      dataRef.current = new Uint8Array(analyser.fftSize);
+    } catch (err) {
+      console.error("mic level metering unavailable", err);
+    }
 
     let recorder: MediaRecorder;
     try {
@@ -76,5 +105,12 @@ export function useAudioCapture(onRecorded: (wav: ArrayBuffer) => void) {
     }
   }, [cleanup]);
 
-  return { recording, start, stop };
+  const getLevel = useCallback(() => {
+    const analyser = analyserRef.current;
+    const data = dataRef.current;
+    if (!analyser || !data) return 0;
+    return readLevel(analyser, data);
+  }, []);
+
+  return { recording, start, stop, getLevel };
 }

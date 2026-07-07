@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { StatCardData, ToolCallCard, WireEvent } from "../lib/types";
-import { MOCK_VITALS } from "../lib/mockData";
+import type { Directive, DocumentEntry, StatCardData, ToolCallCard, WireEvent } from "../lib/types";
+import { MOCK_VITALS, MOCK_DIRECTIVES, MOCK_DOCUMENTS } from "../lib/mockData";
 import { useAudioPlayback } from "./useAudioPlayback";
 
 const WS_URL = (import.meta.env.VITE_WS_URL as string | undefined) || "ws://localhost:8001/ws";
@@ -8,6 +8,8 @@ const RECONNECT_DELAY_MS = 2000;
 
 type ServerMessage =
   | { type: "vitals_update"; vitals: StatCardData[] }
+  | { type: "directives_update"; directives: Directive[] }
+  | { type: "documents_update"; documents: DocumentEntry[] }
   | { type: "assistant_text"; text: string }
   | { type: "tool_call"; id: string; tool_name: string; args: Record<string, unknown> }
   | { type: "tool_result"; id: string; tool_name: string; preview: string }
@@ -20,13 +22,15 @@ function timestamp() {
 export function useJarvisSocket() {
   const [connected, setConnected] = useState(false);
   const [vitals, setVitals] = useState<StatCardData[]>(MOCK_VITALS);
+  const [directives, setDirectives] = useState<Directive[]>(MOCK_DIRECTIVES);
+  const [documents, setDocuments] = useState<DocumentEntry[]>(MOCK_DOCUMENTS);
   const [toolCards, setToolCards] = useState<ToolCallCard[]>([]);
   const [wireEvents, setWireEvents] = useState<WireEvent[]>([]);
   const [agentBusy, setAgentBusy] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const agentBusyRef = useRef(false);
   const wireIdRef = useRef(0);
-  const { play } = useAudioPlayback();
+  const { play, isPlaying, getLevel: getPlaybackLevel } = useAudioPlayback();
 
   const setBusy = useCallback((busy: boolean) => {
     agentBusyRef.current = busy;
@@ -81,6 +85,12 @@ export function useJarvisSocket() {
         switch (msg.type) {
           case "vitals_update":
             setVitals(msg.vitals);
+            break;
+          case "directives_update":
+            setDirectives(msg.directives);
+            break;
+          case "documents_update":
+            setDocuments(msg.documents);
             break;
           case "tool_call":
             setBusy(true);
@@ -146,5 +156,17 @@ export function useJarvisSocket() {
     [setBusy]
   );
 
-  return { connected, vitals, toolCards, wireEvents, agentBusy, sendText, sendAudio };
+  return {
+    connected,
+    vitals,
+    directives,
+    documents,
+    toolCards,
+    wireEvents,
+    agentBusy,
+    sendText,
+    sendAudio,
+    isPlaying,
+    getPlaybackLevel,
+  };
 }

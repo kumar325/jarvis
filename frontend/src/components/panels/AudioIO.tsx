@@ -1,14 +1,13 @@
-import { useAudioCapture } from "../../hooks/useAudioCapture";
 import { PanelFrame } from "./PanelFrame";
 
 interface Props {
-  onRecorded: (wav: ArrayBuffer) => void;
+  recording: boolean;
+  onStart: () => void;
+  onStop: () => void;
   disabled?: boolean;
 }
 
-export function AudioIO({ onRecorded, disabled }: Props) {
-  const { recording, start, stop } = useAudioCapture(onRecorded);
-
+export function AudioIO({ recording, onStart, onStop, disabled }: Props) {
   return (
     <PanelFrame title="AUDIO I/O">
       <div className="flex items-center justify-between">
@@ -17,9 +16,9 @@ export function AudioIO({ onRecorded, disabled }: Props) {
           MIC {recording ? "LIVE" : "STANDBY"}
         </div>
         <button
-          onMouseDown={() => !disabled && start()}
-          onMouseUp={() => recording && stop()}
-          onMouseLeave={() => recording && stop()}
+          onMouseDown={() => !disabled && onStart()}
+          onMouseUp={() => recording && onStop()}
+          onMouseLeave={() => recording && onStop()}
           disabled={disabled}
           className={`rounded-full w-10 h-10 border flex items-center justify-center transition-all disabled:opacity-40 ${
             recording

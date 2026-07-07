@@ -33,6 +33,16 @@ class VitalsUpdateMessage(BaseModel):
     vitals: list[dict[str, Any]]
 
 
+class DirectivesUpdateMessage(BaseModel):
+    type: Literal["directives_update"] = "directives_update"
+    directives: list[dict[str, Any]]
+
+
+class DocumentsUpdateMessage(BaseModel):
+    type: Literal["documents_update"] = "documents_update"
+    documents: list[dict[str, Any]]
+
+
 class ErrorMessage(BaseModel):
     type: Literal["error"] = "error"
     message: str

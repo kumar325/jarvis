@@ -27,6 +27,8 @@ from agent_loop import ask_jarvis
 from . import audio, state
 from .ws_messages import (
     AssistantTextMessage,
+    DirectivesUpdateMessage,
+    DocumentsUpdateMessage,
     ErrorMessage,
     ToolCallMessage,
     ToolResultMessage,
@@ -47,6 +49,16 @@ app.add_middleware(
 @app.get("/vitals")
 def get_vitals():
     return {"vitals": state.get_vitals()}
+
+
+@app.get("/directives")
+def get_directives():
+    return {"directives": state.get_directives()}
+
+
+@app.get("/documents")
+def get_documents():
+    return {"documents": state.get_documents()}
 
 
 @app.websocket("/ws")
@@ -75,7 +87,12 @@ async def ws_endpoint(websocket: WebSocket):
         except Exception:
             return False
 
-    await send_json_safe(VitalsUpdateMessage(vitals=state.get_vitals()).model_dump())
+    async def send_state_snapshot():
+        await send_json_safe(VitalsUpdateMessage(vitals=state.get_vitals()).model_dump())
+        await send_json_safe(DirectivesUpdateMessage(directives=state.get_directives()).model_dump())
+        await send_json_safe(DocumentsUpdateMessage(documents=state.get_documents()).model_dump())
+
+    await send_state_snapshot()
 
     async def handle_user_text(user_text: str):
         nonlocal busy
@@ -115,7 +132,7 @@ async def ws_endpoint(websocket: WebSocket):
                     ErrorMessage(message=f"speech synthesis failed: {e}").model_dump()
                 )
 
-            await send_json_safe(VitalsUpdateMessage(vitals=state.get_vitals()).model_dump())
+            await send_state_snapshot()
         finally:
             # Always released, even if ask_jarvis/synthesis raised something unexpected —
             # otherwise a single failure would permanently lock out this connection.
