@@ -46,7 +46,7 @@ tools/
 eval/
   run_eval.py       — ablation harness, writes CSV to eval/results/
   ablations.py      — capture_tool_trace, apply_ablation, snapshot_system_state
-  test_queries.json — test queries (currently being overhauled — see below)
+  test_queries.json — test queries, split into profile/memory/style/web/general categories
 ```
 
 **Gitignored:** .env, preferences.json, user_profile.json, user_style.json, jarvis_sandbox/
@@ -74,35 +74,28 @@ eval/
 
 ### What works
 - 5 ablation configs: full, no_memory, no_style, no_prefs, no_web_search
-- 4 UpTrain metrics per query: context_relevance, response_relevance,
-  response_completeness, factual_accuracy
+- test_queries.json has 22 queries split into categories — profile (7),
+  memory (5), style (4), web (4), general (2) — so personalization-dependent
+  queries actually have a personalization-dependent correct answer (the old
+  set was profile-independent, which is why no_memory used to outscore full)
+- 5 UpTrain metrics per query: context_relevance, response_relevance,
+  response_completeness, factual_accuracy, plus ground_truth_adherence
+  (scored via GuidelineAdherence against each query's ground_truth_expectation,
+  for profile/memory/style queries)
+- personalization_used boolean — whether a loaded signal (fact/profile/style/
+  example) actually left a keyword/phrase trace in the response, not just
+  whether it was available (see check_personalization_used in ablations.py)
+- delta_<metric> columns (full_score - ablated_score) per query — the number
+  that quantifies each feature's contribution
+- State isolation: preserve_file() snapshots user_profile.json before the run
+  and restores it after, since the memory-recall queries exercise the real
+  remember tool
 - CSV output to eval/results/eval_scores_<timestamp>.csv
 
-### Active overhaul in progress
-The eval was showing no_memory scoring HIGHER than full (1.0 vs 0.611 on
-response_relevance) because queries were profile-independent (weather, sports).
-The following changes are being implemented:
-
-1. **Replace test_queries.json** with 20+ queries split into categories:
-   - Profile-dependent (correct answer requires knowing user is vegetarian,
-     works night shifts) — e.g. "what should I make for dinner tonight?"
-   - Memory-recall (explicitly test remembered facts retrieval)
-   - Style-dependent (measure tone change from style mirroring)
-   - Web-dependent (current weather/sports — keep a few)
-
-2. **Add ground_truth_expectation field** per query for profile-dependent ones
-   (e.g. "response should mention vegetarian options") and score against it as
-   a 5th UpTrain metric
-
-3. **Add personalization_used boolean** — did the signal actually appear in
-   retrieved context, not just get loaded?
-
-4. **Add delta_score column** — (full_score - ablated_score) per query per metric.
-   This is the number the paper needs.
-
-5. **Fix state isolation** — copy user_profile.json to temp before eval run,
-   restore after. Currently q3 ("Remember I'm vegetarian...") pollutes the real
-   profile on every run.
+Last full run (all 22 queries x 5 ablations): eval/results/eval_scores_20260707_002245.csv.
+no_memory drops ground_truth_adherence 0.812 -> 0.438 and no_web_search zeroes
+out context_relevance (0.182 -> 0.0), confirming the harness now detects each
+feature's contribution as expected.
 
 ---
 
@@ -147,7 +140,7 @@ python eval/run_eval.py --ablations no_web_search,full --limit 3
 - [x] Investigate UpTrain for automatic evaluation
 - [x] Functionalize/reorganize files
 - [x] Improve RAG pipeline grounding
-- [ ] Fix eval to test personalization-dependent queries (in progress)
+- [x] Fix eval to test personalization-dependent queries
 - [ ] Tune hyperparameters (k, similarity threshold for preference retrieval)
 - [ ] Plan user study with 5-10 live test subjects
 - [ ] Investigate FAISS/ChromaDB for faster preference retrieval (future work)
@@ -160,4 +153,4 @@ python eval/run_eval.py --ablations no_web_search,full --limit 3
 - Do not modify user_profile.json directly — use remember_fact() / forget_fact()
 - Do not change the system prompt injection order without checking all 5 layers
 - Do not remove truststore.inject_into_ssl() — will break on this machine
-- Do not run full eval (30 queries) without checking Tavily credit balance first
+- Do not run full eval (22 queries x 5 ablations = 110 calls) without checking Tavily credit balance first
