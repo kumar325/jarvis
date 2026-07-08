@@ -105,6 +105,21 @@ export function useAudioCapture(onRecorded: (wav: ArrayBuffer) => void) {
     }
   }, [cleanup]);
 
+  // Toggle for a press-to-start / press-to-stop mic button. onBeforeStart lets the
+  // caller interrupt anything else in progress (e.g. TTS playback) right as a new
+  // recording begins, not just once the recording is stopped and sent.
+  const toggle = useCallback(
+    (onBeforeStart?: () => void) => {
+      if (mediaRecorderRef.current) {
+        stop();
+      } else {
+        onBeforeStart?.();
+        start();
+      }
+    },
+    [start, stop]
+  );
+
   const getLevel = useCallback(() => {
     const analyser = analyserRef.current;
     const data = dataRef.current;
@@ -112,5 +127,5 @@ export function useAudioCapture(onRecorded: (wav: ArrayBuffer) => void) {
     return readLevel(analyser, data);
   }, []);
 
-  return { recording, start, stop, getLevel };
+  return { recording, start, stop, toggle, getLevel };
 }

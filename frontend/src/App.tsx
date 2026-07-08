@@ -31,8 +31,16 @@ function App() {
     sendAudio,
     isPlaying,
     getPlaybackLevel,
+    stopPlayback,
   } = useJarvisSocket();
-  const { recording, start, stop, getLevel: getMicLevel } = useAudioCapture(sendAudio);
+  const { recording, toggle: toggleRecording, getLevel: getMicLevel } = useAudioCapture(sendAudio);
+
+  const handleMicToggle = () => {
+    if (!recording && (agentBusy || !connected)) return;
+    toggleRecording(() => {
+      if (isPlaying) stopPlayback();
+    });
+  };
   const amplitude = useOrbAmplitude({
     recording,
     getMicLevel,
@@ -68,9 +76,8 @@ function App() {
             <CommandDeck actions={COMMAND_ACTIONS} />
             <AudioIO
               recording={recording}
-              onStart={start}
-              onStop={stop}
-              disabled={agentBusy || !connected}
+              onToggle={handleMicToggle}
+              disabled={!recording && (agentBusy || !connected)}
             />
             <AIWire events={wireEvents} />
           </>

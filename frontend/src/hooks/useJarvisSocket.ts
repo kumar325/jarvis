@@ -180,5 +180,6 @@ export function useJarvisSocket() {
     sendAudio,
     isPlaying,
     getPlaybackLevel,
+    stopPlayback,
   };
 }

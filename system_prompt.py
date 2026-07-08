@@ -18,6 +18,7 @@ def build_system_message(current_query):
         f"Today's date is {today_full}, and the current time is {time_str}. Use this as the "
         "ground truth for what 'today', 'tomorrow', 'this week', and 'right now' mean — do not "
         "rely on your own sense of the current date or time. "
+        "When referencing times or schedules, always use Pacific Time (PT). "
         "You can manage files in a sandbox and search the web using your tools. "
         "RESPONSE LENGTH: This is a spoken interface, so match length to what was actually "
         "asked. Simple yes/no or single-fact questions get 1-2 sentences — do not pad them. "
