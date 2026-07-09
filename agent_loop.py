@@ -2,7 +2,7 @@
 import sys
 from langchain_groq import ChatGroq
 from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage, AIMessage
-from config import LLM_MODEL, MAX_TOOL_TURNS
+from config import LLM_MODEL, LLM_TIMEOUT_S, MAX_TOOL_TURNS
 from tools import TOOLS, TOOLS_BY_NAME
 from system_prompt import build_system_message
 
@@ -15,7 +15,7 @@ if hasattr(sys.stdout, "reconfigure"):
 DIM = "\033[2m"
 RESET = "\033[0m"
 
-llm = ChatGroq(model=LLM_MODEL).bind_tools(TOOLS)
+llm = ChatGroq(model=LLM_MODEL, timeout=LLM_TIMEOUT_S).bind_tools(TOOLS)
 
 conversation = []  # built up across turns
 

@@ -4,11 +4,11 @@ from langchain_core.tools import tool
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_groq import ChatGroq
 from tavily import TavilyClient
-from config import LLM_MODEL
+from config import LLM_MODEL, LLM_TIMEOUT_S
 from user_profile import learn_from_url, remember_fact, forget_fact
 
 tavily = TavilyClient(api_key=os.getenv("TAVILY_API_KEY"))
-llm_raw = ChatGroq(model=LLM_MODEL)
+llm_raw = ChatGroq(model=LLM_MODEL, timeout=LLM_TIMEOUT_S)
 
 
 @tool

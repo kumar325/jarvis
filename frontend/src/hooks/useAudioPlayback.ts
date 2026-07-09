@@ -1,12 +1,19 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { readLevel } from "../lib/audio-level";
 
-export function useAudioPlayback() {
+export function useAudioPlayback(enabled: boolean) {
   const ctxRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const dataRef = useRef<Uint8Array<ArrayBuffer> | null>(null);
   const sourceRef = useRef<AudioBufferSourceNode | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  // A ref (not a `play` dependency) so toggling TTS never changes play's identity —
+  // useJarvisSocket's socket-setup effect depends on `play`, and we don't want a mute
+  // toggle to tear down and reconnect the websocket.
+  const enabledRef = useRef(enabled);
+  useEffect(() => {
+    enabledRef.current = enabled;
+  }, [enabled]);
 
   const ensureGraph = useCallback(() => {
     const ctx = ctxRef.current ?? new AudioContext();
@@ -39,6 +46,8 @@ export function useAudioPlayback() {
 
   const play = useCallback(
     async (bytes: ArrayBuffer) => {
+      if (!enabledRef.current) return;
+
       // Never let two replies play at once — cut off whatever's currently speaking.
       stop();
 

@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { useAccentColor } from "./hooks/useAccentColor";
 import { useJarvisSocket } from "./hooks/useJarvisSocket";
 import { useAudioCapture } from "./hooks/useAudioCapture";
@@ -17,8 +18,17 @@ import { CommandInput } from "./components/center/CommandInput";
 import { PrimaryDirective } from "./components/center/PrimaryDirective";
 import { COMMAND_ACTIONS } from "./lib/mockData";
 
+const TTS_ENABLED_STORAGE_KEY = "jarvis-tts-enabled";
+
 function App() {
   const { accent, setAccent } = useAccentColor();
+  const [ttsEnabled, setTtsEnabled] = useState(() => {
+    const stored = localStorage.getItem(TTS_ENABLED_STORAGE_KEY);
+    return stored === null ? true : stored === "true";
+  });
+  useEffect(() => {
+    localStorage.setItem(TTS_ENABLED_STORAGE_KEY, String(ttsEnabled));
+  }, [ttsEnabled]);
   const {
     connected,
     vitals,
@@ -32,7 +42,7 @@ function App() {
     isPlaying,
     getPlaybackLevel,
     stopPlayback,
-  } = useJarvisSocket();
+  } = useJarvisSocket(ttsEnabled, setTtsEnabled);
   const { recording, toggle: toggleRecording, getLevel: getMicLevel } = useAudioCapture(sendAudio);
 
   const handleMicToggle = () => {
@@ -78,6 +88,7 @@ function App() {
               recording={recording}
               onToggle={handleMicToggle}
               disabled={!recording && (agentBusy || !connected)}
+              ttsEnabled={ttsEnabled}
             />
             <AIWire events={wireEvents} />
           </>

@@ -4,6 +4,7 @@ Run from the project root: uvicorn backend.server:app --reload
 """
 import asyncio
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -33,6 +34,7 @@ from .ws_messages import (
     ToolCallMessage,
     ToolResultMessage,
     TranscriptMessage,
+    TtsStateMessage,
     UserTextMessage,
     VitalsUpdateMessage,
 )
@@ -62,6 +64,31 @@ def get_documents():
     return {"documents": state.get_documents()}
 
 
+# Matched against normalized (lowercased, trailing punctuation stripped) user text,
+# spoken or typed, to toggle TTS without spending an ask_jarvis()/LLM call on it.
+# Word-boundary regexes so e.g. "unmute" doesn't also match the "mute" pattern.
+# Keep in sync with frontend/src/lib/ttsCommand.ts's client-side mirror.
+_UNMUTE_PATTERNS = [
+    r"\btalk on\b", r"\bstart talking\b", r"\bunmute\b", r"\bspeak up\b",
+    r"\bvoice on\b", r"\bturn on (the )?voice\b",
+]
+_MUTE_PATTERNS = [
+    r"\btalk off\b", r"\bstop talking\b", r"\bmute\b", r"\bbe quiet\b", r"\bgo silent\b",
+    r"\bvoice off\b", r"\bturn off (the )?voice\b",
+]
+
+
+def parse_tts_command(text: str) -> bool | None:
+    """Returns True for an unmute command, False for a mute command, None if the text
+    isn't a TTS toggle at all."""
+    normalized = text.strip().lower().rstrip(".!?")
+    if any(re.search(p, normalized) for p in _UNMUTE_PATTERNS):
+        return True
+    if any(re.search(p, normalized) for p in _MUTE_PATTERNS):
+        return False
+    return None
+
+
 @app.websocket("/ws")
 async def ws_endpoint(websocket: WebSocket):
     await websocket.accept()
@@ -71,6 +98,7 @@ async def ws_endpoint(websocket: WebSocket):
     # write to the socket concurrently, or frames can interleave and corrupt the stream.
     send_lock = asyncio.Lock()
     busy = False
+    tts_enabled = True
 
     async def send_json_safe(payload: dict) -> bool:
         try:
@@ -96,9 +124,31 @@ async def ws_endpoint(websocket: WebSocket):
     await send_state_snapshot()
 
     async def handle_user_text(user_text: str):
-        nonlocal busy
+        nonlocal busy, tts_enabled
         user_text = user_text.strip()
         if not user_text:
+            return
+
+        tts_command = parse_tts_command(user_text)
+        if tts_command is not None:
+            # Intercepted before ask_jarvis() — a mute/unmute toggle isn't a real query,
+            # so it never touches the LLM.
+            tts_enabled = tts_command
+            reply = "Voice output back on." if tts_enabled else "Voice output off — I'll keep replying in text."
+            busy = True
+            try:
+                await send_json_safe(TtsStateMessage(enabled=tts_enabled).model_dump())
+                await send_json_safe(AssistantTextMessage(text=reply).model_dump())
+                if tts_enabled:
+                    try:
+                        audio_reply = await run_in_threadpool(audio.synthesize, reply)
+                        await send_bytes_safe(audio_reply)
+                    except Exception as e:
+                        await send_json_safe(
+                            ErrorMessage(message=f"speech synthesis failed: {e}").model_dump()
+                        )
+            finally:
+                busy = False
             return
 
         loop = asyncio.get_running_loop()
@@ -125,13 +175,14 @@ async def ws_endpoint(websocket: WebSocket):
             state.record_turn()
             await send_json_safe(AssistantTextMessage(text=reply).model_dump())
 
-            try:
-                audio_reply = await run_in_threadpool(audio.synthesize, reply)
-                await send_bytes_safe(audio_reply)
-            except Exception as e:
-                await send_json_safe(
-                    ErrorMessage(message=f"speech synthesis failed: {e}").model_dump()
-                )
+            if tts_enabled:
+                try:
+                    audio_reply = await run_in_threadpool(audio.synthesize, reply)
+                    await send_bytes_safe(audio_reply)
+                except Exception as e:
+                    await send_json_safe(
+                        ErrorMessage(message=f"speech synthesis failed: {e}").model_dump()
+                    )
 
             await send_state_snapshot()
         finally:

@@ -21,3 +21,10 @@ SAMPLE_RATE = 16000
 
 # Agent
 MAX_TOOL_TURNS = 3
+
+# Per-call timeout (seconds) for every ChatGroq client. Bounds a single HTTP
+# call, not the whole agent loop — a multi-tool-turn request can still take
+# multiples of this legitimately. Without it, a stalled connection (e.g. this
+# machine's SSL cert flakiness) hangs the request forever and leaks a
+# threadpool worker permanently.
+LLM_TIMEOUT_S = 20

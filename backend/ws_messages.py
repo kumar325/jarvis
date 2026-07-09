@@ -53,3 +53,10 @@ class DocumentsUpdateMessage(BaseModel):
 class ErrorMessage(BaseModel):
     type: Literal["error"] = "error"
     message: str
+
+
+class TtsStateMessage(BaseModel):
+    """Server -> client: TTS mute state changed (via a 'talk off'/'talk on' voice
+    command), so the frontend can sync its ttsEnabled toggle and indicator."""
+    type: Literal["tts_state"] = "tts_state"
+    enabled: bool

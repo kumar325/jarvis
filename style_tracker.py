@@ -3,10 +3,10 @@ import json
 from pathlib import Path
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_groq import ChatGroq
-from config import LLM_MODEL
+from config import LLM_MODEL, LLM_TIMEOUT_S
 
 STYLE_FILE = Path("user_style.json")
-llm_style = ChatGroq(model=LLM_MODEL)
+llm_style = ChatGroq(model=LLM_MODEL, timeout=LLM_TIMEOUT_S)
 
 # How many recent user turns we keep to analyze style
 BUFFER_SIZE = 20

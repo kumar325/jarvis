@@ -5,10 +5,10 @@ from pathlib import Path
 from bs4 import BeautifulSoup
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_groq import ChatGroq
-from config import LLM_MODEL
+from config import LLM_MODEL, LLM_TIMEOUT_S
 
 PROFILE_FILE = Path("user_profile.json")
-llm_profile = ChatGroq(model=LLM_MODEL)
+llm_profile = ChatGroq(model=LLM_MODEL, timeout=LLM_TIMEOUT_S)
 
 
 def fetch_page_text(url: str) -> str:

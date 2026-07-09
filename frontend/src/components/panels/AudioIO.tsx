@@ -4,15 +4,22 @@ interface Props {
   recording: boolean;
   onToggle: () => void;
   disabled?: boolean;
+  ttsEnabled: boolean;
 }
 
-export function AudioIO({ recording, onToggle, disabled }: Props) {
+export function AudioIO({ recording, onToggle, disabled, ttsEnabled }: Props) {
   return (
     <PanelFrame title="AUDIO I/O">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-1.5 text-xs text-slate-300">
-          <span className={`w-1.5 h-1.5 rounded-full ${recording ? "bg-accent animate-pulse" : "bg-slate-600"}`} />
-          MIC {recording ? "LIVE" : "STANDBY"}
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-1.5 text-xs text-slate-300">
+            <span className={`w-1.5 h-1.5 rounded-full ${recording ? "bg-accent animate-pulse" : "bg-slate-600"}`} />
+            MIC {recording ? "LIVE" : "STANDBY"}
+          </div>
+          <div className="flex items-center gap-1.5 text-xs text-slate-300">
+            <span className={`w-1.5 h-1.5 rounded-full ${ttsEnabled ? "bg-accent" : "bg-slate-600"}`} />
+            VOICE {ttsEnabled ? "ON" : "MUTED"}
+          </div>
         </div>
         <button
           onClick={onToggle}
