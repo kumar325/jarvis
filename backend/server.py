@@ -23,7 +23,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import ValidationError
 from starlette.concurrency import run_in_threadpool
 
-from agent_loop import ask_jarvis
+from agent_loop import ask_jarvis, clear_conversation
 
 from . import audio, state
 from .ws_messages import (
@@ -92,6 +92,13 @@ def parse_tts_command(text: str) -> bool | None:
 @app.websocket("/ws")
 async def ws_endpoint(websocket: WebSocket):
     await websocket.accept()
+
+    # Every connection starts a fresh session. agent_loop.conversation is module-level
+    # and lives as long as the process, so without this the previous participant's full
+    # transcript would still be in context after a user-state reset. Consequences worth
+    # knowing: a mid-session browser refresh starts the conversation over, and a second
+    # tab wipes the first tab's history (the backend assumes one client at a time).
+    clear_conversation()
 
     # Serializes every send on this connection — tool-event sends (scheduled from a
     # worker thread via run_coroutine_threadsafe) and the main reply flow must never

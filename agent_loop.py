@@ -20,6 +20,16 @@ llm = ChatGroq(model=LLM_MODEL, timeout=LLM_TIMEOUT_S).bind_tools(TOOLS)
 conversation = []  # built up across turns
 
 
+def clear_conversation():
+    """Drop all conversation history, starting a fresh session.
+
+    Cleared in place rather than rebound, so any module holding a reference to
+    `conversation` sees the same (now empty) list. Only clears in-memory turns —
+    the personalization files are separate state; see reset_user_state.py.
+    """
+    conversation.clear()
+
+
 def _think(message):
     """Print an internal-thinking line in dim gray, flushed immediately."""
     print(f"{DIM}Jarvis (thinking): {message}{RESET}", flush=True)

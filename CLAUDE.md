@@ -2,8 +2,7 @@
 
 ## Project overview
 Jarvis is a modular Python voice assistant with in-context RLHF and multi-layer
-personalization. Built as a UW Bothell CS capstone (Summer 2026) targeting a
-NeurIPS or ACL workshop paper. Faculty advisor: Dr. Champion.
+personalization. Built as a research project, targeting a high tier ML conference.
 
 **Paper claim (working):**
 "In-context preference learning produces measurable behavior change with N user
