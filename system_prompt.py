@@ -1,13 +1,24 @@
-"""Build the dynamic system prompt with profile, remembered facts, style, and preference examples."""
+"""Build the system prompt: static base instructions + the URL-derived profile summary.
+
+Arch 2 (jarvis_sandbox/architecture.txt) isolates ONE personalization mechanism — the
+cold-start profile scraped from the participant's public URL before the session. The other
+three layers this module used to inject (remembered facts, style mirroring, preference
+examples) are deliberately gone: each was a second personalization channel that would make
+it impossible to attribute a result to the cold-start profile alone. Their modules
+(user_profile.remember_fact, style_tracker, preferences) still exist and are still used by
+the jarvis.py CLI and the eval harness — they are simply no longer injected here.
+"""
 from datetime import datetime
 
 from langchain_core.messages import SystemMessage
-from preferences import retrieve_examples
-from user_profile import get_profile_summary, get_remembered_facts
-from style_tracker import get_style_summary
+from user_profile import get_profile_summary
 
 
 def build_system_message(current_query):
+    """`current_query` is unused now that preference retrieval is gone — it was the
+    similarity key for picking preference examples. Kept in the signature because
+    agent_loop and the eval harness both call this positionally.
+    """
     now = datetime.now()
     today = f"{now:%B} {now.day}, {now:%Y}"
     today_full = now.strftime("%A, %B") + f" {now.day}, {now:%Y}"
@@ -62,9 +73,6 @@ def build_system_message(current_query):
         "simply agree with them. Either re-search to verify, or stick with your sourced "
         "answer and tell them where it came from. Do not invent numbers to match the "
         "user's claim. "
-        "REMEMBERING: When the user shares a personal preference or fact they'd want you to "
-        "remember (diet, name of someone in their life, schedule, etc.), call the remember "
-        "tool to save it. Phrase the fact as a complete sentence starting with 'The user'. "
         "AFTER you've gathered enough information from a tool to answer the user's question, "
         "STOP using tools and give the answer in plain text. Do NOT call additional tools "
         "unrelated to what the user asked. One tool call is usually enough — only chain "
@@ -74,34 +82,10 @@ def build_system_message(current_query):
         "after the user clearly says yes. If they say no or seem unsure, do not delete."
     )
 
-    # User profile (URL-derived summary)
+    # The one personalization layer in Arch 2: the summary built from the participant's
+    # public URL before the session starts, fixed for its duration.
     profile_summary = get_profile_summary()
     if profile_summary:
         base += f"\n\nWHAT YOU KNOW ABOUT THE USER (from their public profile):\n{profile_summary}"
-
-    # Remembered facts (explicit)
-    facts = get_remembered_facts()
-    if facts:
-        base += "\n\nFACTS THE USER HAS ASKED YOU TO REMEMBER:"
-        for f in facts:
-            base += f"\n- {f}"
-
-    # Style mirroring
-    style = get_style_summary()
-    if style:
-        base += f"\n\nUSER'S SPEAKING STYLE — MATCH IT IN YOUR REPLIES:\n{style}"
-
-    # Preference examples (in-context RLHF)
-    good, bad = retrieve_examples(current_query)
-    if good or bad:
-        base += "\n\nLEARNED USER PREFERENCES:"
-    if good:
-        base += "\n\nThe user rated these past responses HIGHLY — imitate their style:"
-        for ex in good:
-            base += f"\n  User asked: \"{ex['query']}\"\n  You said: \"{ex['reply']}\""
-    if bad:
-        base += "\n\nThe user rated these past responses POORLY — avoid this style:"
-        for ex in bad:
-            base += f"\n  User asked: \"{ex['query']}\"\n  You said: \"{ex['reply']}\""
 
     return SystemMessage(content=base)

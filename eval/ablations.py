@@ -11,7 +11,9 @@ from unittest.mock import patch
 
 import agent_loop
 import system_prompt
-from user_profile import PROFILE_FILE
+from preferences import retrieve_examples
+from style_tracker import get_style_summary
+from user_profile import PROFILE_FILE, get_remembered_facts
 
 
 class _StubTool:
@@ -24,17 +26,17 @@ class _StubTool:
 
 # Which functions build_system_message() calls, keyed by ablation name.
 # Empty list ("full") means no patches — the unmodified baseline.
+#
+# The old no_style and no_prefs configs are gone, and no_memory now covers only the
+# profile: as of the Arch 2 change, system_prompt.py injects the URL-derived profile and
+# nothing else, so there is no style/facts/preference text left in the prompt for those
+# configs to ablate. Patching functions system_prompt no longer imports would raise
+# AttributeError, and reporting a ~0 delta for a layer that isn't there would be worse.
+# Restore them alongside the corresponding injection blocks if a layer comes back.
 ABLATION_PATCHES = {
     "full": [],
     "no_memory": [
         ("system_prompt.get_profile_summary", {"return_value": ""}),
-        ("system_prompt.get_remembered_facts", {"return_value": []}),
-    ],
-    "no_style": [
-        ("system_prompt.get_style_summary", {"return_value": ""}),
-    ],
-    "no_prefs": [
-        ("system_prompt.retrieve_examples", {"return_value": ([], [])}),
     ],
     "no_web_search": [],  # handled separately via TOOLS_BY_NAME stub below
 }
@@ -82,11 +84,18 @@ def snapshot_system_state(query: str) -> dict:
     under whatever ablation patches are currently active. Raw signal text is included
     under underscore-prefixed keys so callers can check whether the signal actually
     surfaced in the response (see check_personalization_used); pop them before
-    writing a row to the CSV."""
-    facts = system_prompt.get_remembered_facts()
+    writing a row to the CSV.
+
+    Only `profile_summary` is read through system_prompt, because it's the only signal
+    system_prompt still injects — and therefore the only one an ablation patch can affect.
+    Facts, style, and preferences are read from their own modules: they report what is
+    sitting on disk, NOT what reached the prompt. Non-zero values in those columns mean
+    leftover state from a previous participant, not active personalization.
+    """
     profile_summary = system_prompt.get_profile_summary()
-    style_summary = system_prompt.get_style_summary()
-    good, bad = system_prompt.retrieve_examples(query)
+    facts = get_remembered_facts()
+    style_summary = get_style_summary()
+    good, bad = retrieve_examples(query)
     return {
         "facts_count": len(facts),
         "has_profile": bool(profile_summary),
