@@ -4,8 +4,11 @@ Run from the project root: uvicorn backend.server:app --reload
 """
 import asyncio
 import json
+import os
 import re
 import sys
+import uuid
+from datetime import datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -25,12 +28,15 @@ from starlette.concurrency import run_in_threadpool
 
 from agent_loop import ask_jarvis, clear_conversation
 
-from . import audio, state
+from . import audio, ratings, state
 from .ws_messages import (
     AssistantTextMessage,
     DirectivesUpdateMessage,
     DocumentsUpdateMessage,
     ErrorMessage,
+    RatingMessage,
+    SessionInfoMessage,
+    SetTtsMessage,
     ToolCallMessage,
     ToolResultMessage,
     TranscriptMessage,
@@ -41,12 +47,43 @@ from .ws_messages import (
 
 app = FastAPI(title="Jarvis HUD backend")
 
+# Vite picks the next free port when 5173 is taken, so both are allowed. (Only the REST
+# endpoints below are affected — browsers don't apply CORS to WebSocket handshakes.)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=["http://localhost:5173", "http://localhost:5174"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Which arm of the study this process is serving (jarvis_sandbox/architecture.txt:
+# arch1 = generic baseline, arch2 = URL cold-start personalization), recorded on every
+# rating so the two phases can be told apart at analysis time. Set it when launching:
+#   $env:JARVIS_STUDY_CONDITION = "arch1"   (or "arch2")
+# Left "unspecified" rather than guessing a default — an unlabeled rating is obvious in
+# the log, a wrongly-labeled one is not.
+STUDY_CONDITION = os.environ.get("JARVIS_STUDY_CONDITION", "unspecified")
+
+# Pseudonymous participant code (P01, P02, ...), matching reset_user_state.py's
+# --participant labels. This is what joins one participant's arch1 ratings to their arch2
+# ratings when the two arms run on separate machines writing separate log files — session
+# ids are per-connection and can't do it. Deliberately a code, not a name: the protocol
+# keeps identity separate from task responses, so the code-to-person mapping lives outside
+# this repo.
+PARTICIPANT_ID = os.environ.get("JARVIS_PARTICIPANT_ID", "unassigned")
+
+# Printed to the operator's terminal (never to the participant's screen) so a mislabeled
+# session is caught before it's run rather than found at analysis time.
+print(
+    f"[jarvis] study condition={STUDY_CONDITION} participant={PARTICIPANT_ID} "
+    f"-> {ratings.RATINGS_PATH.relative_to(Path(__file__).resolve().parent.parent)}",
+    flush=True,
+)
+
+# Bounds the per-connection pending-exchange map. Ratings are mandatory in the UI, so in
+# practice at most one exchange is ever awaiting a rating; this only matters if a
+# participant refreshes mid-session and leaves stale entries behind.
+MAX_PENDING_EXCHANGES = 50
 
 
 @app.get("/vitals")
@@ -107,6 +144,19 @@ async def ws_endpoint(websocket: WebSocket):
     busy = False
     tts_enabled = True
 
+    # One session per connection, matching the fresh-conversation reset above. Carries no
+    # participant identity — it exists purely to group this session's ratings.
+    session_id = f"sesn_{datetime.now():%Y%m%d_%H%M%S}_{uuid.uuid4().hex[:6]}"
+    turn_index = 0
+    message_counter = 0
+    # message_id -> the exchange it belongs to, kept until that response is rated.
+    pending_exchanges: dict[str, dict] = {}
+
+    def next_message_id() -> str:
+        nonlocal message_counter
+        message_counter += 1
+        return f"{session_id}_msg{message_counter:03d}"
+
     async def send_json_safe(payload: dict) -> bool:
         try:
             async with send_lock:
@@ -128,10 +178,27 @@ async def ws_endpoint(websocket: WebSocket):
         await send_json_safe(DirectivesUpdateMessage(directives=state.get_directives()).model_dump())
         await send_json_safe(DocumentsUpdateMessage(documents=state.get_documents()).model_dump())
 
+    await send_json_safe(
+        SessionInfoMessage(session_id=session_id, condition=STUDY_CONDITION).model_dump()
+    )
+    await send_json_safe(TtsStateMessage(enabled=tts_enabled).model_dump())
     await send_state_snapshot()
 
-    async def handle_user_text(user_text: str):
-        nonlocal busy, tts_enabled
+    def register_exchange(message_id: str, user_text: str, reply: str, input_mode: str):
+        """Remember what a response was answering, so an incoming rating can be logged
+        against the actual exchange rather than just an id."""
+        if len(pending_exchanges) >= MAX_PENDING_EXCHANGES:
+            pending_exchanges.pop(next(iter(pending_exchanges)))
+        pending_exchanges[message_id] = {
+            "turn_index": turn_index,
+            "input_mode": input_mode,
+            "user_text": user_text,
+            "assistant_text": reply,
+            "responded_at": ratings.utc_now_iso(),
+        }
+
+    async def handle_user_text(user_text: str, input_mode: str = "text"):
+        nonlocal busy, tts_enabled, turn_index
         user_text = user_text.strip()
         if not user_text:
             return
@@ -145,7 +212,13 @@ async def ws_endpoint(websocket: WebSocket):
             busy = True
             try:
                 await send_json_safe(TtsStateMessage(enabled=tts_enabled).model_dump())
-                await send_json_safe(AssistantTextMessage(text=reply).model_dump())
+                # ratable=False: a mute confirmation isn't model output, so the UI must not
+                # demand a thumbs up/down on it.
+                await send_json_safe(
+                    AssistantTextMessage(
+                        text=reply, id=next_message_id(), ratable=False
+                    ).model_dump()
+                )
                 if tts_enabled:
                     try:
                         audio_reply = await run_in_threadpool(audio.synthesize, reply)
@@ -180,7 +253,12 @@ async def ws_endpoint(websocket: WebSocket):
                 return
 
             state.record_turn()
-            await send_json_safe(AssistantTextMessage(text=reply).model_dump())
+            turn_index += 1
+            message_id = next_message_id()
+            register_exchange(message_id, user_text, reply, input_mode)
+            await send_json_safe(
+                AssistantTextMessage(text=reply, id=message_id, ratable=True).model_dump()
+            )
 
             if tts_enabled:
                 try:
@@ -197,6 +275,49 @@ async def ws_endpoint(websocket: WebSocket):
             # otherwise a single failure would permanently lock out this connection.
             busy = False
 
+    async def handle_set_tts(enabled: bool):
+        nonlocal tts_enabled
+        tts_enabled = enabled
+        # Echoed back so the UI's toggle reflects server state, exactly as the spoken
+        # "talk off" path does.
+        await send_json_safe(TtsStateMessage(enabled=tts_enabled).model_dump())
+
+    async def handle_rating(incoming: RatingMessage):
+        exchange = pending_exchanges.pop(incoming.message_id, None)
+        if exchange is None:
+            # Unknown id — a stale tab, or a rating replayed after a reconnect. Better to
+            # say so than to write a half-empty row into the study log.
+            await send_json_safe(
+                ErrorMessage(message="that response is no longer awaiting a rating").model_dump()
+            )
+            return
+
+        record = {
+            "session_id": session_id,
+            "participant_id": PARTICIPANT_ID,
+            "condition": STUDY_CONDITION,
+            "message_id": incoming.message_id,
+            "rating": incoming.rating,
+            "rated_at": ratings.utc_now_iso(),
+            **exchange,
+        }
+        try:
+            await run_in_threadpool(ratings.append_rating, record)
+        except Exception as e:
+            # The UI unblocks optimistically on click and is not told to re-block — a disk
+            # error must never strand a participant mid-session. Surfaced so the session
+            # runner sees it.
+            await send_json_safe(
+                ErrorMessage(message=f"failed to log rating: {e}").model_dump()
+            )
+
+    async def send_busy_error():
+        await send_json_safe(
+            ErrorMessage(
+                message="still processing the previous request — try again in a moment"
+            ).model_dump()
+        )
+
     while True:
         try:
             message = await websocket.receive()
@@ -206,16 +327,11 @@ async def ws_endpoint(websocket: WebSocket):
         if message["type"] == "websocket.disconnect":
             break
 
-        if busy:
-            await send_json_safe(
-                ErrorMessage(
-                    message="still processing the previous request — try again in a moment"
-                ).model_dump()
-            )
-            continue
-
         try:
             if message.get("bytes") is not None:
+                if busy:
+                    await send_busy_error()
+                    continue
                 try:
                     user_text = await run_in_threadpool(audio.transcribe_bytes, message["bytes"])
                 except Exception as e:
@@ -229,17 +345,53 @@ async def ws_endpoint(websocket: WebSocket):
                     )
                     continue
                 await send_json_safe(TranscriptMessage(text=user_text).model_dump())
-                await handle_user_text(user_text)
+                await handle_user_text(user_text, input_mode="voice")
+                continue
 
-            elif message.get("text") is not None:
+            if message.get("text") is None:
+                continue
+
+            try:
+                payload = json.loads(message["text"])
+            except json.JSONDecodeError:
+                await send_json_safe(ErrorMessage(message="expected a JSON message").model_dump())
+                continue
+
+            kind = payload.get("type")
+
+            # Control messages do no LLM work and deliberately skip the busy guard — a mute
+            # press lands mid-reply, and a rating must go through even if the participant
+            # has already started the next turn somehow.
+            if kind == "set_tts":
                 try:
-                    incoming = UserTextMessage.model_validate(json.loads(message["text"]))
-                except (ValidationError, json.JSONDecodeError):
+                    await handle_set_tts(SetTtsMessage.model_validate(payload).enabled)
+                except ValidationError:
                     await send_json_safe(
-                        ErrorMessage(message="expected a user_text message").model_dump()
+                        ErrorMessage(message="malformed set_tts message").model_dump()
                     )
-                    continue
-                await handle_user_text(incoming.text)
+                continue
+
+            if kind == "rating":
+                try:
+                    await handle_rating(RatingMessage.model_validate(payload))
+                except ValidationError:
+                    await send_json_safe(
+                        ErrorMessage(message="malformed rating message").model_dump()
+                    )
+                continue
+
+            if busy:
+                await send_busy_error()
+                continue
+
+            try:
+                incoming = UserTextMessage.model_validate(payload)
+            except ValidationError:
+                await send_json_safe(
+                    ErrorMessage(message="expected a user_text message").model_dump()
+                )
+                continue
+            await handle_user_text(incoming.text, input_mode="text")
         except Exception as e:
             # Catch-all so one bad message (transcription glitch, TTS engine hiccup, ...)
             # can never kill the whole connection.
