@@ -13,6 +13,8 @@ interface Props {
   onMicToggle: () => void;
   /** Stop the mic and discard the audio, rather than submitting it. */
   onMicCancel: () => void;
+  /** Actionable capture failure (permission, no device, unsupported), or null. */
+  micError: string | null;
 }
 
 function MicIcon({ active }: { active: boolean }) {
@@ -65,6 +67,7 @@ export function CommandInput({
   recording,
   onMicToggle,
   onMicCancel,
+  micError,
 }: Props) {
   const [value, setValue] = useState("");
 
@@ -153,7 +156,15 @@ export function CommandInput({
           >
             <MicIcon active={recording} />
           </button>
-          <span className="text-[0.9rem] text-[var(--text-muted)]">{voiceHint}</span>
+          {/* A capture failure outranks the hint: "Tap the microphone to speak" next to a
+              button that can't work is what made this look like a dead button. */}
+          <span
+            className={`text-[0.9rem] ${
+              micError ? "text-[var(--danger)]" : "text-[var(--text-muted)]"
+            }`}
+          >
+            {micError ?? voiceHint}
+          </span>
         </div>
       )}
     </div>

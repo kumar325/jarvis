@@ -42,6 +42,7 @@ function App() {
   } = useJarvisSocket(ttsEnabled, setTtsEnabled);
   const {
     recording,
+    error: micError,
     toggle: toggleRecording,
     cancel: cancelRecording,
     getLevel: getMicLevel,
@@ -95,6 +96,7 @@ function App() {
             recording={recording}
             onMicToggle={handleMicToggle}
             onMicCancel={cancelRecording}
+            micError={micError}
           />
         }
       />

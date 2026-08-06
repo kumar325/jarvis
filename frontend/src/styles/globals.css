@@ -14,6 +14,9 @@
   --border: #262b33;
   --text: #e7eaee;
   --text-muted: #949aa4;
+  /* Muted enough not to alarm a participant, distinct enough to read as "something
+     needs your attention" rather than ordinary hint text. */
+  --danger: #d98b7f;
 
   /* Aliases kept so the tailwind color tokens keep resolving. */
   --panel-bg: var(--surface);

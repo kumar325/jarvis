@@ -2,8 +2,29 @@ import { useCallback, useRef, useState } from "react";
 import { blobToWav16kMono } from "../lib/wav-encode";
 import { readLevel } from "../lib/audio-level";
 
+/** Turn a getUserMedia rejection into something a participant can act on.
+ *
+ * These all used to dead-end in console.error, so a blocked mic looked identical to a
+ * dead button — the participant taps, nothing happens, and the session runner has no way
+ * to tell permission from missing hardware without opening DevTools. */
+function micErrorMessage(err: unknown): string {
+  switch ((err as { name?: string })?.name) {
+    case "NotAllowedError":
+    case "SecurityError":
+      return "Microphone blocked. Allow it via the icon in the address bar, then reload.";
+    case "NotFoundError":
+    case "OverconstrainedError":
+      return "No microphone found. Connect one and try again.";
+    case "NotReadableError":
+      return "The microphone is in use by another app. Close it and try again.";
+    default:
+      return "Couldn't start the microphone. Check your browser's audio settings.";
+  }
+}
+
 export function useAudioCapture(onRecorded: (wav: ArrayBuffer) => void) {
   const [recording, setRecording] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
@@ -27,6 +48,14 @@ export function useAudioCapture(onRecorded: (wav: ArrayBuffer) => void) {
 
   const start = useCallback(async () => {
     if (mediaRecorderRef.current) return;
+    setError(null);
+
+    // Absent outside a secure context — http:// on anything but localhost. Reading
+    // .getUserMedia off undefined would throw a TypeError that reads like a bug.
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setError("Recording needs a secure connection — use localhost or https.");
+      return;
+    }
 
     let stream: MediaStream;
     try {
@@ -35,6 +64,7 @@ export function useAudioCapture(onRecorded: (wav: ArrayBuffer) => void) {
       });
     } catch (err) {
       console.error("microphone access failed", err);
+      setError(micErrorMessage(err));
       return;
     }
 
@@ -68,6 +98,7 @@ export function useAudioCapture(onRecorded: (wav: ArrayBuffer) => void) {
       recorder = new MediaRecorder(stream);
     } catch (err) {
       console.error("MediaRecorder unavailable", err);
+      setError("Recording isn't supported in this browser.");
       cleanup();
       return;
     }
@@ -78,6 +109,7 @@ export function useAudioCapture(onRecorded: (wav: ArrayBuffer) => void) {
 
     recorder.onerror = (event) => {
       console.error("recording error", event);
+      setError("Recording stopped unexpectedly. Try again.");
       cleanup();
     };
 
@@ -87,13 +119,18 @@ export function useAudioCapture(onRecorded: (wav: ArrayBuffer) => void) {
       discardRef.current = false;
       cleanup();
 
-      if (discard || chunks.length === 0) return;
+      if (discard) return;
+      if (chunks.length === 0) {
+        setError("Didn't capture any audio — try holding the button a moment longer.");
+        return;
+      }
       try {
         const blob = new Blob(chunks, { type: recorder.mimeType });
         const wav = await blobToWav16kMono(blob);
         onRecorded(await wav.arrayBuffer());
       } catch (err) {
         console.error("failed to encode recorded audio", err);
+        setError("Couldn't process that recording. Try again.");
       }
     };
 
@@ -141,5 +178,5 @@ export function useAudioCapture(onRecorded: (wav: ArrayBuffer) => void) {
     return readLevel(analyser, data);
   }, []);
 
-  return { recording, start, stop, cancel, toggle, getLevel };
+  return { recording, error, start, stop, cancel, toggle, getLevel };
 }
