@@ -1,12 +1,19 @@
 """Style mirroring: analyze recent user utterances and cache a style description."""
 import json
-from pathlib import Path
+import threading
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_groq import ChatGroq
-from config import LLM_MODEL, LLM_TIMEOUT_S
+from config import LLM_MODEL, LLM_TIMEOUT_S, PROJECT_ROOT
 
-STYLE_FILE = Path("user_style.json")
+# Project-root-anchored, not CWD-relative — see the Paths note in config.py.
+STYLE_FILE = PROJECT_ROOT / "user_style.json"
 llm_style = ChatGroq(model=LLM_MODEL, timeout=LLM_TIMEOUT_S)
+
+# record_utterance is a read-modify-write of the whole file. It is now called from the
+# backend's threadpool (backend/server.py) as well as the jarvis.py CLI, and a second
+# browser tab is a second writer — without this, concurrent turns can lose utterances.
+# Mirrors backend/ratings.py's _write_lock.
+_write_lock = threading.Lock()
 
 # How many recent user turns we keep to analyze style
 BUFFER_SIZE = 20
@@ -31,20 +38,37 @@ def record_utterance(user_text: str):
     user_text = user_text.strip()
     if not user_text:
         return
-    state = _load()
-    state["utterances"].append(user_text)
-    state["utterances"] = state["utterances"][-BUFFER_SIZE:]  # keep last N
-    state["turns_since_analysis"] = state.get("turns_since_analysis", 0) + 1
 
-    # Re-analyze periodically once we have enough data
-    if (
-        len(state["utterances"]) >= MIN_UTTERANCES
-        and state["turns_since_analysis"] >= ANALYSIS_INTERVAL
-    ):
-        state["style_summary"] = _analyze_style(state["utterances"])
+    with _write_lock:
+        state = _load()
+        state["utterances"].append(user_text)
+        state["utterances"] = state["utterances"][-BUFFER_SIZE:]  # keep last N
+        state["turns_since_analysis"] = state.get("turns_since_analysis", 0) + 1
+        # Re-analyze periodically once we have enough data
+        due = (
+            len(state["utterances"]) >= MIN_UTTERANCES
+            and state["turns_since_analysis"] >= ANALYSIS_INTERVAL
+        )
+        utterances = list(state["utterances"])
+        # Persisted before the analysis rather than after it, so a Groq failure costs
+        # only the summary refresh — previously it raised past _save() and dropped the
+        # utterance entirely. turns_since_analysis is reset only on success below, so a
+        # failed analysis is simply retried on the next turn.
+        _save(state)
+
+    if not due:
+        return
+
+    # Deliberately outside the lock: _analyze_style is a network call that can block for
+    # LLM_TIMEOUT_S, and holding the lock across it would stall every other writer for
+    # that long.
+    summary = _analyze_style(utterances)
+
+    with _write_lock:
+        state = _load()
+        state["style_summary"] = summary
         state["turns_since_analysis"] = 0
-
-    _save(state)
+        _save(state)
 
 
 def _analyze_style(utterances: list) -> str:

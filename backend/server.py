@@ -28,6 +28,18 @@ from starlette.concurrency import run_in_threadpool
 
 from agent_loop import ask_jarvis, clear_conversation
 
+# Collected on the web path so a browser study session produces the same on-disk state a
+# jarvis.py CLI session does. Write path ONLY — neither file is read back into the system
+# prompt (see system_prompt.py and CLAUDE.md's "Personalization layers"): re-injecting them
+# would be a second personalization channel and would make an Arch 2 result impossible to
+# attribute to the cold-start profile alone.
+#
+# Imported at module level rather than lazily inside the handlers so the cost lands at
+# backend startup, before a participant sits down. It adds nothing new anyway — backend
+# .state already imports preferences transitively, so the embedder is loaded either way.
+from preferences import save_pref
+from style_tracker import record_utterance
+
 from . import audio, ratings, state
 from .ws_messages import (
     AssistantTextMessage,
@@ -79,6 +91,19 @@ print(
     f"-> {ratings.RATINGS_PATH.relative_to(Path(__file__).resolve().parent.parent)}",
     flush=True,
 )
+
+
+def log_operator(message: str):
+    """Warn the session runner on their own terminal, never the participant's screen.
+
+    Deliberately not an ErrorMessage: the frontend renders those into the participant's
+    conversation AND calls setBusy(false) (frontend/src/hooks/useJarvisSocket.ts's "error"
+    case), so using one mid-turn would both show a stray line and unlock the input while
+    ask_jarvis is still running. Study-data capture failing is an operator problem — it
+    must not change what the participant sees or can do.
+    """
+    print(f"[jarvis] {message}", flush=True)
+
 
 # Bounds the per-connection pending-exchange map. Ratings are mandatory in the UI, so in
 # practice at most one exchange is ever awaiting a rating; this only matters if a
@@ -231,6 +256,21 @@ async def ws_endpoint(websocket: WebSocket):
                 busy = False
             return
 
+        # Mirrors jarvis.py's record_utterance() call, so a browser session fills the
+        # style buffer the same way a CLI session does. Two deliberate differences:
+        #   - Placed AFTER the parse_tts_command guard above. The CLI records every input
+        #     before it branches, so "mute"/"talk off" land in its buffer; those are
+        #     control phrases, not speech samples worth mirroring, so they never reach the
+        #     buffer here.
+        #   - Threadpooled, because every ANALYSIS_INTERVAL-th call invokes the Groq LLM
+        #     (LLM_TIMEOUT_S=20) and would otherwise block the event loop mid-session.
+        try:
+            await run_in_threadpool(record_utterance, user_text)
+        except Exception as e:
+            # Capture is study data collection, not part of answering the participant —
+            # a failure here must never cost them their turn.
+            log_operator(f"failed to record utterance for style buffer: {e}")
+
         loop = asyncio.get_running_loop()
 
         def on_event(event: dict):
@@ -310,6 +350,18 @@ async def ws_endpoint(websocket: WebSocket):
             await send_json_safe(
                 ErrorMessage(message=f"failed to log rating: {e}").model_dump()
             )
+
+        # Mirrors jarvis.py's save_pref() calls. Additive to the ratings.jsonl append
+        # above, not a replacement: that file stays the study's source of truth (it is the
+        # only one carrying participant_id and condition), while preferences.json is the
+        # in-context-RLHF pair store the eval harness reads. Independent of the append —
+        # if one fails the other still runs.
+        try:
+            await run_in_threadpool(
+                save_pref, exchange["user_text"], exchange["assistant_text"], incoming.rating
+            )
+        except Exception as e:
+            log_operator(f"failed to save preference pair: {e}")
 
     async def send_busy_error():
         await send_json_safe(

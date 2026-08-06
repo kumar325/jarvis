@@ -1,5 +1,6 @@
 """Preference learning: rating storage, semantic retrieval of past examples."""
 import json
+import threading
 from datetime import datetime
 
 import numpy as np
@@ -30,16 +31,26 @@ def load_prefs():
         return json.loads(PREFS_FILE.read_text(encoding="utf-8"))
     return []
 
+# save_pref is a read-modify-write of the whole file. It is now called from the backend's
+# threadpool (backend/server.py) as well as the jarvis.py CLI, and a second browser tab is
+# a second writer — without this, concurrent ratings can lose pairs. Mirrors
+# backend/ratings.py's _write_lock.
+_write_lock = threading.Lock()
+
 def save_pref(query, reply, rating):
-    prefs = load_prefs()
-    prefs.append({
+    # Embedded before taking the lock — encoding is the slow part of this function, and
+    # it depends on nothing that another writer could change.
+    entry = {
         "query": query,
         "reply": reply,
         "rating": rating,
         "timestamp": datetime.now().isoformat(),
         "query_embedding": embed(query).tolist(),
-    })
-    PREFS_FILE.write_text(json.dumps(prefs, indent=2), encoding="utf-8")
+    }
+    with _write_lock:
+        prefs = load_prefs()
+        prefs.append(entry)
+        PREFS_FILE.write_text(json.dumps(prefs, indent=2), encoding="utf-8")
 
 def retrieve_examples(current_query, k=3):
     """Return (good_examples, bad_examples) most similar to current_query."""

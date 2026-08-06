@@ -90,15 +90,40 @@ alone, rather than to whichever mechanism happened to fire:
 - **Remembered facts** — removed, along with `remember`/`forget` from `tools/__init__.py`.
   The model calling `remember` mid-session was a second personalization channel that
   accumulated during the three tasks.
-- **Style summary** — removed. Was already inert on the web path (`record_utterance` is
-  only called from jarvis.py).
-- **Preference examples** — removed. Also inert on the web path (`save_pref` is only
-  called from jarvis.py). Note the frontend's thumbs up/down does NOT write here; it
-  writes to study_data/ratings.jsonl.
+- **Style summary** — removed from the prompt. Still *collected*: `backend/server.py`
+  calls `record_utterance` on every web turn.
+- **Preference examples** — removed from the prompt. Still *collected*:
+  `backend/server.py` calls `save_pref` on every thumbs up/down.
 
 The modules themselves (user_profile.remember_fact, style_tracker, preferences) still
 exist and still work — they're used by the jarvis.py CLI and the eval harness. They are
 simply no longer injected into the prompt.
+
+### Collected but not injected
+
+`user_style.json` and `preferences.json` are written on the web path but never read back
+into the system prompt. Keep those two facts separate — they are not in tension:
+
+- **Write path** — the browser session now produces the same on-disk state a CLI session
+  does, so the eval harness and post-hoc analysis have something to work with. Before this
+  the web UI collected none of it.
+- **Read path** — `system_prompt.py` still injects base instructions + URL profile only.
+  Re-injecting either file would be a second personalization channel and would make an
+  Arch 2 result impossible to attribute to the cold-start profile alone.
+
+Ratings go to **both** `study_data/ratings.jsonl` and `preferences.json`. ratings.jsonl is
+the study's source of truth — it is the only one carrying `participant_id` and
+`condition`. preferences.json is a flat list with neither, so it is per-session scratch:
+it is only meaningful if `reset_user_state.py --participant P0X` runs between every
+participant, which archives it to `study_data/P0X/`.
+
+`backend/state.py` also *reads* all three files, but only to build the `/vitals` HUD
+counters — that is not prompt injection, and PREFERENCE EXAMPLES climbing during a session
+is the cheapest end-to-end check that collection is working.
+
+Mute/unmute phrases ("talk off", "mute") are recorded by the CLI but deliberately NOT by
+the web path — `record_utterance` sits after the `parse_tts_command` guard, since a
+control phrase is not a speech sample worth mirroring.
 
 ---
 

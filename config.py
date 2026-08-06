@@ -4,9 +4,18 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Paths
-SANDBOX = Path("jarvis_sandbox").resolve()
+#
+# Anchored to the project root (this file's directory), never to the process CWD.
+# These are resolved by three separate entrypoints — jarvis.py, backend/server.py under
+# uvicorn, and eval/run_eval.py — and a bare relative Path would silently point each one
+# at a different file if it were launched from anywhere but the root. That failure is
+# invisible: a second set of state files accumulates, and reset_user_state.py (which
+# anchors to its own directory) neither archives nor wipes them, so the next participant
+# inherits the previous one's state. Keep in sync with reset_user_state.py's STATE_FILES.
+PROJECT_ROOT = Path(__file__).resolve().parent
+SANDBOX = PROJECT_ROOT / "jarvis_sandbox"
 SANDBOX.mkdir(exist_ok=True)
-PREFS_FILE = Path("preferences.json")
+PREFS_FILE = PROJECT_ROOT / "preferences.json"
 
 # Models
 LLM_MODEL = "openai/gpt-oss-120b"
