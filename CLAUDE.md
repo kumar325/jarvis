@@ -10,9 +10,14 @@ ratings, and we characterize where it works and where weight-based RLHF would
 do better."
 
 **Repo:** private at kumar325/jarvis
-**Local path:** C:\Users\Mahar\OneDrive\Desktop\KaranC++\jarvis\
-**Python:** 3.12 at C:\Users\Mahar\AppData\Local\Programs\Python\Python312\
+**Local path:** C:\Users\Parth\Desktop\KaranCode\jarvis\
+**Python:** 3.14.6 at C:\Users\Parth\AppData\Local\Python\pythoncore-3.14-64\
 **Venv:** .venv — activate with .venv\Scripts\Activate.ps1
+
+`python` on PATH resolves to the Windows Store stub, **not** the venv — running
+`python jarvis.py` without activating first fails with ModuleNotFoundError on
+sounddevice (and every other dependency). Activate, or call
+`.venv\Scripts\python.exe` directly.
 
 ---
 
@@ -34,30 +39,66 @@ jarvis.py           — thin main loop, Enter-to-talk or t-for-text input
 config.py           — constants and env loading
 voice.py            — Whisper STT + pyttsx3 TTS
 agent_loop.py       — LangChain agent, MAX_TOOL_TURNS=3, graceful fallback
-system_prompt.py    — builds dynamic system prompt (base + profile + facts + style + prefs)
+system_prompt.py    — builds system prompt (base + URL profile only; see layers below)
 preferences.py      — in-context RLHF: stores preference pairs, cosine-similarity retrieval
 user_profile.py     — URL cold-start scraping + remember/forget facts
 style_tracker.py    — 20-utterance rolling buffer, style summary every 5 turns
+reset_user_state.py — wipe/archive participant state between sessions (stdlib only)
+inspect_prompt.py   — dump the assembled system prompt for debugging
 tools/
   web.py            — Tavily search + verify_search_result (llm_raw cross-source check)
   files.py          — sandboxed file tools with two-step delete confirmation
-  __init__.py
+  __init__.py       — TOOLS list; remember/forget deliberately NOT bound (see layers)
+backend/            — FastAPI WebSocket server wrapping ask_jarvis() for the web UI
+  server.py         — /ws endpoint, TTS state, rating + set_tts control messages
+  audio.py          — browser wav bytes <-> voice.transcribe() / speak_to_bytes()
+  ratings.py        — appends thumbs up/down rows to study_data/ratings.jsonl
+  state.py          — /vitals /directives /documents REST payloads (no longer rendered)
+  ws_messages.py    — pydantic schemas for the client/server message contract
+frontend/           — Vite + React + Tailwind study UI (see frontend/src/)
+  src/App.tsx       — wiring: socket, audio capture, input mode, rating gate
+  src/hooks/        — useJarvisSocket, useAudioCapture, useAudioPlayback, useOrbAmplitude
+  src/components/   — layout/ (Header, Clock, MuteButton, Shell), center/ (Orb,
+                      Conversation, CommandInput, RatingPrompt)
 eval/
   run_eval.py       — ablation harness, writes CSV to eval/results/
   ablations.py      — capture_tool_trace, apply_ablation, snapshot_system_state
   test_queries.json — test queries, split into profile/memory/style/web/general categories
 ```
 
-**Gitignored:** .env, preferences.json, user_profile.json, user_style.json, jarvis_sandbox/
+**Gitignored:** .env (root and frontend/), preferences.json, user_profile.json,
+user_style.json, jarvis_sandbox/, study_data/, input.wav, .venv/, .cursor/, .claude/
+
+`frontend/.env` is gitignored but only holds `VITE_WS_URL` — no secret. A fresh clone
+has no copy of it and falls back to the default in useJarvisSocket.ts, so keep that
+default and the backend's port in sync (both 8000).
 
 ---
 
 ## Personalization layers (injection order in system prompt)
+
+**This repo is Arch 2** (see jarvis_sandbox/architecture.txt): cold-start URL
+personalization, and nothing else. Arch 1 — the generic no-personalization baseline —
+lives in a separate repo.
+
 1. Base instructions (personality, tools, grounding, uncertainty calibration)
-2. URL-derived profile summary (from user_profile.json)
-3. Remembered facts list (from user_profile.json → remembered_facts)
-4. Style summary (from user_style.json)
-5. Preference examples — good then bad (retrieved via cosine similarity from preferences.json)
+2. URL-derived profile summary (from user_profile.json) — **the only personalization layer**
+
+Three layers were removed so a study result can be attributed to the cold-start profile
+alone, rather than to whichever mechanism happened to fire:
+
+- **Remembered facts** — removed, along with `remember`/`forget` from `tools/__init__.py`.
+  The model calling `remember` mid-session was a second personalization channel that
+  accumulated during the three tasks.
+- **Style summary** — removed. Was already inert on the web path (`record_utterance` is
+  only called from jarvis.py).
+- **Preference examples** — removed. Also inert on the web path (`save_pref` is only
+  called from jarvis.py). Note the frontend's thumbs up/down does NOT write here; it
+  writes to study_data/ratings.jsonl.
+
+The modules themselves (user_profile.remember_fact, style_tracker, preferences) still
+exist and still work — they're used by the jarvis.py CLI and the eval harness. They are
+simply no longer injected into the prompt.
 
 ---
 
@@ -72,7 +113,10 @@ eval/
 ## Eval harness — current state and known issues
 
 ### What works
-- 5 ablation configs: full, no_memory, no_style, no_prefs, no_web_search
+- 3 ablation configs: full, no_memory (= no profile), no_web_search. no_style and
+  no_prefs were dropped when those layers left the prompt — there was nothing left for
+  them to ablate, and patching functions system_prompt no longer imports raises
+  AttributeError. Restore them alongside the injection blocks if a layer comes back.
 - test_queries.json has 22 queries split into categories — profile (7),
   memory (5), style (4), web (4), general (2) — so personalization-dependent
   queries actually have a personalization-dependent correct answer (the old
@@ -87,8 +131,8 @@ eval/
 - delta_<metric> columns (full_score - ablated_score) per query — the number
   that quantifies each feature's contribution
 - State isolation: preserve_file() snapshots user_profile.json before the run
-  and restores it after, since the memory-recall queries exercise the real
-  remember tool
+  and restores it after (kept even though the agent can no longer call remember —
+  the CLI path and future ablations still can)
 - CSV output to eval/results/eval_scores_<timestamp>.csv
 
 Last full run (all 22 queries x 5 ablations): eval/results/eval_scores_20260707_002245.csv.
@@ -96,12 +140,21 @@ no_memory drops ground_truth_adherence 0.812 -> 0.438 and no_web_search zeroes
 out context_relevance (0.182 -> 0.0), confirming the harness now detects each
 feature's contribution as expected.
 
+**That run predates the Arch 2 strip and is no longer comparable.** It was scored against
+a prompt carrying all five layers; the current prompt carries one. The memory (5) and
+style (4) query categories in test_queries.json now have no mechanism to answer them —
+the agent can't call remember, and style is never injected — so those 9 queries will
+score badly by construction rather than by regression. Re-baseline before reading any
+delta, and expect the query set itself to need revisiting.
+
 ---
 
 ## Known bugs / tech debt
 - user_profile.json dedup is exact-string match only → near-duplicates accumulate
   across eval runs (e.g. "The user is vegetarian." and "The user is vegetarian"
   as separate entries). Needs cosine similarity dedup using the existing embedder.
+  Lower priority now that the agent can't call remember on the web path — only the
+  jarvis.py CLI and the eval harness still write facts.
 - SSL cert issue on this machine fixed via truststore — don't remove that call.
 - HF_HUB_OFFLINE=1 can be set if Hugging Face SSL check fails at startup
   (model is already cached locally).
@@ -133,6 +186,29 @@ python eval/run_eval.py
 python eval/run_eval.py --ablations no_web_search,full --limit 3
 ```
 
+### Running a study session (web UI)
+```powershell
+# Backend — label the session BEFORE starting it. Both vars are read once at
+# import, so restart the backend between participants.
+$env:JARVIS_STUDY_CONDITION = "arch2"   # arch1 | arch2 — see label conventions below
+$env:JARVIS_PARTICIPANT_ID  = "P03"     # P01, P02, ... zero-padded
+.venv\Scripts\python.exe -m uvicorn backend.server:app --port 8000
+
+# Frontend (separate terminal)
+cd frontend; npm run dev
+```
+The backend prints `[jarvis] study condition=… participant=…` at startup — check it
+before the participant sits down. Unset values fall back to `unspecified` /
+`unassigned` rather than guessing, so an unlabeled session is obvious in the log.
+
+**Label conventions — keep identical across both machines and both repos.** Condition is
+`arch1` or `arch2` (lowercase, matching architecture.txt). Participant is `P01`-style,
+capital P, zero-padded. The participant ID is the only join key between a participant's
+arch1 and arch2 rating logs — session IDs are per-connection and can't pair them — and
+the two arms write to separate files on separate laptops, so a variant spelling means
+reconciling by hand after data collection. Use the same string for
+`reset_user_state.py --participant P03`.
+
 ---
 
 ## Paper todos (from Dr. Champion)
@@ -150,6 +226,9 @@ python eval/run_eval.py --ablations no_web_search,full --limit 3
 
 ## What NOT to do
 - Do not modify user_profile.json directly — use remember_fact() / forget_fact()
-- Do not change the system prompt injection order without checking all 5 layers
+- Do not re-add remembered facts, style, or preference examples to the system prompt,
+  or re-bind remember/forget in tools/__init__.py. Each one is a second personalization
+  channel and reintroducing it makes an Arch 2 result unattributable to the cold-start
+  profile. If a layer genuinely needs to come back, that's a study-design decision.
 - Do not remove truststore.inject_into_ssl() — will break on this machine
-- Do not run full eval (22 queries x 5 ablations = 110 calls) without checking Tavily credit balance first
+- Do not run full eval (22 queries x 3 ablations = 66 calls) without checking Tavily credit balance first

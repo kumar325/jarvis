@@ -19,8 +19,8 @@ participant's browser connects — but a tab left open from the previous session
 never reconnects, so this script checks for a running backend and reminds you to
 reload the page.
 
-Also not covered (browser-side): the TTS-enabled and accent-color localStorage
-keys. Use a fresh browser profile per participant.
+Also not covered (browser-side): the jarvis-tts-enabled localStorage key, which
+carries the mute toggle across reloads. Use a fresh browser profile per participant.
 
 By default the outgoing participant's files are archived under study_data/
 before being cleared, so their data isn't destroyed. input.wav is deleted rather
@@ -59,7 +59,7 @@ SANDBOX = ROOT / "jarvis_sandbox"          # config.SANDBOX
 RECORDING = ROOT / "input.wav"             # voice.py's scratch recording
 
 # Where the FastAPI backend listens (frontend/src/hooks/useJarvisSocket.ts).
-BACKEND_HOST, BACKEND_PORT = "127.0.0.1", 8001
+BACKEND_HOST, BACKEND_PORT = "127.0.0.1", 8000
 
 
 def describe(path: Path) -> str:
