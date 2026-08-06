@@ -19,6 +19,26 @@ SPEECH_RATE = 170
 RECORD_SECONDS = 10
 SAMPLE_RATE = 16000
 
+# Whisper decoding
+#
+# Pinning the language skips per-clip auto-detection, which is unreliable on the short,
+# noisy utterances this app records and can silently degrade the whole transcript.
+WHISPER_LANGUAGE = "en"
+
+# Primes Whisper's decoder with context so local proper nouns resolve instead of being
+# guessed at phonetically — "Bothell" was coming back as "Balthol" and "Buffalo", and the
+# LLM then answered confidently about Baltimore.
+#
+# Deliberately a fluent sentence rather than a comma-separated keyword list: Whisper can
+# echo prompt tokens into the transcript, and it is far likelier to splice in stray words
+# from a word-salad prompt than from natural prose. Keep it short and keep it grammatical.
+# Edit this per deployment — it should name the places and institutions your participants
+# will actually say.
+WHISPER_PROMPT = (
+    "The speaker is a student at the University of Washington Bothell, "
+    "near Seattle, Kirkland, and Redmond in Washington state."
+)
+
 # Agent
 MAX_TOOL_TURNS = 3
 
