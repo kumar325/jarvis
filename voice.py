@@ -37,7 +37,7 @@ def _is_prompt_echo(text: str) -> bool:
     and written to ratings.jsonl as something they never said.
 
     Matches only a contiguous run of the prompt (whole or truncated) covering most of it,
-    so a participant genuinely saying "I study at UW Bothell" is not discarded.
+    so a participant genuinely naming their own campus is not discarded.
     """
     tokens = _normalize(text)
     if not tokens or len(tokens) < 0.6 * len(_PROMPT_TOKENS):

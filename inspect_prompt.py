@@ -32,7 +32,6 @@ query = args[0] if args else "what should I eat tonight?"
 DEMO_SUMMARY = (
     "This person is a computer science student focused on machine learning and "
     "conversational AI. They write tersely, prefer concrete detail over hedging"
-    "and finds themself too funny"
 )
 
 # --demo patches the cold-start layer in memory only. Nothing is written to disk,

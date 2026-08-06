@@ -9,9 +9,9 @@ personalization. Built as a research project, targeting a high tier ML conferenc
 ratings, and we characterize where it works and where weight-based RLHF would
 do better."
 
-**Repo:** private at kumar325/jarvis
-**Local path:** C:\Users\Parth\Desktop\KaranCode\jarvis\
-**Python:** 3.14.6 at C:\Users\Parth\AppData\Local\Python\pythoncore-3.14-64\
+**Repo:** private (see `git remote -v`)
+**Local path:** the repo root — this file's directory
+**Python:** 3.14.6 at %LOCALAPPDATA%\Python\pythoncore-3.14-64\
 **Venv:** .venv — activate with .venv\Scripts\Activate.ps1
 
 `python` on PATH resolves to the Windows Store stub, **not** the venv — running
@@ -236,7 +236,7 @@ reconciling by hand after data collection. Use the same string for
 
 ---
 
-## Paper todos (from Dr. Champion)
+## Paper todos (from advisor)
 - [x] Investigate UpTrain for automatic evaluation
 - [x] Functionalize/reorganize files
 - [x] Improve RAG pipeline grounding
