@@ -2,46 +2,34 @@ import type { ReactNode } from "react";
 
 interface Props {
   header: ReactNode;
+  controls: ReactNode;
   clock: ReactNode;
-  leftPanels: ReactNode;
-  rightPanels: ReactNode;
-  center: ReactNode;
-  toolCards: ReactNode;
-  commandInput: ReactNode;
-  primaryDirective: ReactNode;
+  orb: ReactNode;
+  conversation: ReactNode;
+  rating: ReactNode;
+  input: ReactNode;
 }
 
-export function Shell({
-  header,
-  clock,
-  leftPanels,
-  rightPanels,
-  center,
-  toolCards,
-  commandInput,
-  primaryDirective,
-}: Props) {
+/** Title top-left, mute + time top-right, orb centered, conversation / rating / input below. */
+export function Shell({ header, controls, clock, orb, conversation, rating, input }: Props) {
   return (
-    <div className="relative z-10 h-full w-full grid grid-cols-[300px_1fr_300px] grid-rows-[auto_1fr_auto] gap-4 p-5">
-      <div className="col-start-1 row-start-1">{header}</div>
-      <div className="col-start-3 row-start-1 flex justify-end">{clock}</div>
-
-      <div className="col-start-1 row-start-2 flex flex-col gap-4 overflow-y-auto min-h-0">
-        {leftPanels}
+    <div className="flex h-full w-full flex-col px-6 py-5">
+      <div className="flex items-start justify-between">
+        {header}
+        <div className="flex items-center gap-3">
+          {controls}
+          {clock}
+        </div>
       </div>
 
-      <div className="col-start-2 row-start-2 flex flex-col min-h-0">
-        <div className="flex-1 min-h-0">{center}</div>
-        <div className="pb-2">{toolCards}</div>
+      <div className="flex min-h-0 flex-1 flex-col items-center">
+        <div className="min-h-0 w-full flex-1">{orb}</div>
+        <div className="w-full max-w-2xl">{conversation}</div>
       </div>
 
-      <div className="col-start-3 row-start-2 flex flex-col gap-4 overflow-y-auto min-h-0">
-        {rightPanels}
-      </div>
-
-      <div className="col-start-2 row-start-3 flex flex-col items-center gap-3 pb-2">
-        {commandInput}
-        {primaryDirective}
+      <div className="mx-auto w-full max-w-2xl pt-4">
+        {rating}
+        {input}
       </div>
     </div>
   );

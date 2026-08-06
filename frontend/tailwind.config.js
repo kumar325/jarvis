@@ -6,15 +6,12 @@ export default {
       colors: {
         accent: "var(--accent)",
         "accent-dim": "var(--accent-dim)",
-        panel: "var(--panel-bg)",
-        "panel-border": "var(--panel-border)",
+        surface: "var(--surface)",
+        "surface-raised": "var(--surface-raised)",
+        border: "var(--border)",
       },
       fontFamily: {
-        mono: ["'Share Tech Mono'", "ui-monospace", "monospace"],
-        condensed: ["'Rajdhani'", "sans-serif"],
-      },
-      boxShadow: {
-        glow: "0 0 12px var(--accent-glow), 0 0 2px var(--accent-glow)",
+        sans: ["Inter", "ui-sans-serif", "system-ui", "sans-serif"],
       },
     },
   },

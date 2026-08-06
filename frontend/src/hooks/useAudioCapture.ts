@@ -10,6 +10,9 @@ export function useAudioCapture(onRecorded: (wav: ArrayBuffer) => void) {
   const levelCtxRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const dataRef = useRef<Uint8Array<ArrayBuffer> | null>(null);
+  // Set by cancel() so the recorder's onstop tears down without sending what it captured.
+  // MediaRecorder has no "stop without emitting" of its own.
+  const discardRef = useRef(false);
 
   const cleanup = useCallback(() => {
     streamRef.current?.getTracks().forEach((track) => track.stop());
@@ -37,6 +40,7 @@ export function useAudioCapture(onRecorded: (wav: ArrayBuffer) => void) {
 
     streamRef.current = stream;
     chunksRef.current = [];
+    discardRef.current = false;
 
     // Tap the mic stream for a live amplitude reading (orb reactivity) without playing
     // it back — route through a muted gain so the analyser stays active cross-browser,
@@ -79,9 +83,11 @@ export function useAudioCapture(onRecorded: (wav: ArrayBuffer) => void) {
 
     recorder.onstop = async () => {
       const chunks = chunksRef.current;
+      const discard = discardRef.current;
+      discardRef.current = false;
       cleanup();
 
-      if (chunks.length === 0) return;
+      if (discard || chunks.length === 0) return;
       try {
         const blob = new Blob(chunks, { type: recorder.mimeType });
         const wav = await blobToWav16kMono(blob);
@@ -120,6 +126,14 @@ export function useAudioCapture(onRecorded: (wav: ArrayBuffer) => void) {
     [start, stop]
   );
 
+  // Stop the mic and throw the recording away — used when the participant leaves voice
+  // mode mid-recording, where a plain stop() would submit a turn they didn't mean to send.
+  const cancel = useCallback(() => {
+    if (!mediaRecorderRef.current) return;
+    discardRef.current = true;
+    stop();
+  }, [stop]);
+
   const getLevel = useCallback(() => {
     const analyser = analyserRef.current;
     const data = dataRef.current;
@@ -127,5 +141,5 @@ export function useAudioCapture(onRecorded: (wav: ArrayBuffer) => void) {
     return readLevel(analyser, data);
   }, []);
 
-  return { recording, start, stop, toggle, getLevel };
+  return { recording, start, stop, cancel, toggle, getLevel };
 }

@@ -39,3 +39,8 @@ export interface WireEvent {
 }
 
 export type SystemStatus = "IDLE" | "ONLINE" | "ALIVE" | "BUSY" | "OFFLINE";
+
+/** How the participant is entering their next message. Switchable at any point. */
+export type InputMode = "text" | "voice";
+
+export type Rating = "up" | "down";

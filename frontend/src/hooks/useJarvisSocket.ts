@@ -1,10 +1,20 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { Directive, DocumentEntry, StatCardData, ToolCallCard, WireEvent } from "../lib/types";
+import type {
+  Directive,
+  DocumentEntry,
+  Rating,
+  StatCardData,
+  ToolCallCard,
+  WireEvent,
+} from "../lib/types";
 import { MOCK_VITALS, MOCK_DIRECTIVES, MOCK_DOCUMENTS } from "../lib/mockData";
 import { parseTtsCommand } from "../lib/ttsCommand";
 import { useAudioPlayback } from "./useAudioPlayback";
 
-const WS_URL = (import.meta.env.VITE_WS_URL as string | undefined) || "ws://localhost:8001/ws";
+// frontend/.env is gitignored, so a fresh clone has no VITE_WS_URL and falls through to
+// this default — it must match the port backend/server.py actually documents (8000), or
+// a new machine silently fails to connect with no error beyond "Connecting…".
+const WS_URL = (import.meta.env.VITE_WS_URL as string | undefined) || "ws://localhost:8000/ws";
 const RECONNECT_DELAY_MS = 2000;
 const BUSY_TIMEOUT_MS = 10000;
 
@@ -17,8 +27,9 @@ type ServerMessage =
   | { type: "vitals_update"; vitals: StatCardData[] }
   | { type: "directives_update"; directives: Directive[] }
   | { type: "documents_update"; documents: DocumentEntry[] }
-  | { type: "assistant_text"; text: string }
+  | { type: "assistant_text"; text: string; id: string; ratable: boolean }
   | { type: "transcript"; text: string }
+  | { type: "session_info"; session_id: string; condition: string }
   | { type: "tool_call"; id: string; tool_name: string; args: Record<string, unknown> }
   | { type: "tool_result"; id: string; tool_name: string; preview: string }
   | { type: "tts_state"; enabled: boolean }
@@ -36,6 +47,13 @@ export function useJarvisSocket(ttsEnabled: boolean, onTtsStateChange: (enabled:
   const [toolCards, setToolCards] = useState<ToolCallCard[]>([]);
   const [wireEvents, setWireEvents] = useState<WireEvent[]>([]);
   const [agentBusy, setAgentBusy] = useState(false);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  // The id of the response currently awaiting a thumbs up/down. Non-null means input is
+  // gated: the participant must rate before sending anything else.
+  const [pendingRatingId, setPendingRatingId] = useState<string | null>(null);
+  // Mirrored in a ref so the send callbacks can check the gate without being re-created
+  // (and tearing down the socket effect) every time a rating lands.
+  const pendingRatingIdRef = useRef<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const agentBusyRef = useRef(false);
   const wireIdRef = useRef(0);
@@ -77,6 +95,11 @@ export function useJarvisSocket(ttsEnabled: boolean, onTtsStateChange: (enabled:
     };
   }, []);
 
+  const updatePendingRating = useCallback((id: string | null) => {
+    pendingRatingIdRef.current = id;
+    setPendingRatingId(id);
+  }, []);
+
   const pushWireEvent = useCallback((speaker: "USER" | "JARVIS", text: string) => {
     wireIdRef.current += 1;
     setWireEvents((prev) =>
@@ -99,6 +122,9 @@ export function useJarvisSocket(ttsEnabled: boolean, onTtsStateChange: (enabled:
         // A dropped connection can't still be "processing" anything — otherwise a mic
         // or network hiccup permanently disables both input paths.
         setBusy(false, "ws:onclose");
+        // A reconnect starts a fresh server-side session, so the old pending response no
+        // longer exists to be rated — holding the gate would lock the participant out.
+        updatePendingRating(null);
         if (!cancelled) {
           reconnectTimer = setTimeout(connect, RECONNECT_DELAY_MS);
         }
@@ -142,7 +168,7 @@ export function useJarvisSocket(ttsEnabled: boolean, onTtsStateChange: (enabled:
             ]);
             break;
           case "tool_result":
-            // Tool trace stays in the floating ToolCallCards only — not a chat message.
+            // Tool trace is tracked but not rendered — never a chat message.
             setToolCards((prev) =>
               prev.map((c) => (c.id === msg.id ? { ...c, preview: msg.preview } : c))
             );
@@ -155,9 +181,15 @@ export function useJarvisSocket(ttsEnabled: boolean, onTtsStateChange: (enabled:
             // on a reply that (aside from the tts_state + confirmation) won't come.
             if (parseTtsCommand(msg.text) !== null) setBusy(false, "transcript:tts-command");
             break;
+          case "session_info":
+            setSessionId(msg.session_id);
+            break;
           case "assistant_text":
             setBusy(false, "assistant_text");
             pushWireEvent("JARVIS", msg.text);
+            // Mute/unmute confirmations arrive as assistant_text too, but the server marks
+            // them ratable:false — gating on those would put junk in the ratings log.
+            if (msg.ratable && msg.id) updatePendingRating(msg.id);
             break;
           case "tts_state":
             onTtsStateChange(msg.enabled);
@@ -187,12 +219,13 @@ export function useJarvisSocket(ttsEnabled: boolean, onTtsStateChange: (enabled:
       if (reconnectTimer) clearTimeout(reconnectTimer);
       wsRef.current?.close();
     };
-  }, [pushWireEvent, play, setBusy, onTtsStateChange]);
+  }, [pushWireEvent, play, setBusy, onTtsStateChange, updatePendingRating]);
 
   const sendText = useCallback(
     (text: string) => {
       const ws = wsRef.current;
       if (!ws || ws.readyState !== WebSocket.OPEN || agentBusyRef.current) return;
+      if (pendingRatingIdRef.current) return;
       try {
         // A new request always interrupts whatever Jarvis is currently speaking —
         // never let two replies play at once.
@@ -214,6 +247,7 @@ export function useJarvisSocket(ttsEnabled: boolean, onTtsStateChange: (enabled:
     (wav: ArrayBuffer) => {
       const ws = wsRef.current;
       if (!ws || ws.readyState !== WebSocket.OPEN || agentBusyRef.current) return;
+      if (pendingRatingIdRef.current) return;
       try {
         stopPlayback();
         setBusy(true, "sendAudio");
@@ -226,16 +260,53 @@ export function useJarvisSocket(ttsEnabled: boolean, onTtsStateChange: (enabled:
     [setBusy, stopPlayback]
   );
 
+  const sendRating = useCallback(
+    (rating: Rating) => {
+      const messageId = pendingRatingIdRef.current;
+      if (!messageId) return;
+
+      // Cleared optimistically. A dropped frame or a disk error on the server must never
+      // strand a participant behind the gate mid-session — a failed write comes back as an
+      // error message for the session runner instead.
+      updatePendingRating(null);
+
+      const ws = wsRef.current;
+      if (!ws || ws.readyState !== WebSocket.OPEN) return;
+      try {
+        ws.send(JSON.stringify({ type: "rating", message_id: messageId, rating }));
+      } catch (err) {
+        console.error("failed to send rating", err);
+      }
+    },
+    [updatePendingRating]
+  );
+
+  const sendTtsState = useCallback((enabled: boolean) => {
+    const ws = wsRef.current;
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    try {
+      // Server-side mute means it also stops synthesizing, rather than sending audio the
+      // client would only discard.
+      ws.send(JSON.stringify({ type: "set_tts", enabled }));
+    } catch (err) {
+      console.error("failed to send tts state", err);
+    }
+  }, []);
+
   return {
     connected,
+    sessionId,
     vitals,
     directives,
     documents,
     toolCards,
     wireEvents,
     agentBusy,
+    pendingRatingId,
     sendText,
     sendAudio,
+    sendRating,
+    sendTtsState,
     isPlaying,
     getPlaybackLevel,
     stopPlayback,
