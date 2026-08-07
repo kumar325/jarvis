@@ -50,9 +50,19 @@ MIN_SOURCE_CHARS = 100
 # get a summary of a different shape than everyone else's, which is a per-participant
 # difference in the one layer Arch 2 is built on.
 PROFILE_SYSTEM_PROMPT = (
-    "You will be given text that belongs to or describes a person. "
-    "Write a concise profile of this person — their likely interests, profession, communication "
+    "You will be given text that belongs to or describes a person, possibly gathered from "
+    "more than one source. Write ONE unified profile of this person — their likely interests, "
+    "profession, communication "
     "style, personality, and anything else useful for a personal assistant to know. "
+    "Do not summarize the sources separately or mention them; merge them into a single "
+    "description, and if they disagree prefer the more specific detail. "
+    # The stored text is injected under "WHAT YOU KNOW ABOUT THE USER", so person matters.
+    # A bio written ABOUT the participant by someone else ("My dad is 54...") otherwise
+    # produces "Your dad is a 54-year-old...", and the assistant then believes its user is
+    # the author rather than the subject — quietly personalizing for the wrong person.
+    "The person described IS the assistant's user. Always write about them in the third "
+    "person as 'this person' or 'they', whoever the source text is addressed to and "
+    "whatever person it is written in. Never write 'your dad', 'my friend', or similar. "
     "Keep it under 200 words. Be specific. Do not invent facts not supported by the text. "
     # Plain prose, not markdown: this text is injected verbatim into the system prompt, and
     # only under arch2. A bulleted profile visibly pulls replies toward bulleted output —
@@ -70,32 +80,83 @@ def _summarize_person(source_line: str, text: str) -> str:
     ]).content
 
 
-def _store_summary(summary: str, source: str, source_type: str):
+def _store_summary(summary: str, sources: list, source_type: str):
     """Overwrite the cold-start summary and record where it came from.
 
-    `source_type` ("url" or "text") is kept so analysis can tell which participants had a
-    scraped profile and which wrote their own — the two are not equivalent inputs, and a
-    result that hinges on the difference should be visible rather than buried.
+    `source_type` ("url", "text", or "text+url") is kept so analysis can tell which
+    participants had a scraped profile, which wrote their own, and which had both — these
+    are not equivalent inputs, and a result that hinges on the difference should be visible
+    rather than buried.
     """
     profile = load_profile()
     profile["sources"] = profile.get("sources", [])
-    profile["sources"].append(source)
+    profile["sources"].extend(sources)
     profile["summary"] = summary
     profile["source_type"] = source_type
     save_profile(profile)
 
 
-def learn_from_url(url: str) -> str:
-    """Fetch the URL, summarize the person, and save it. Returns a status message."""
-    page_text = fetch_page_text(url)
-    if page_text.startswith("FETCH_ERROR"):
-        return f"Couldn't fetch {url}. Error: {page_text}"
-    if len(page_text) < MIN_SOURCE_CHARS:
-        return f"Page at {url} returned almost no text — likely blocked or requires login."
+# Budget for the combined source text sent to the summarizer. Split evenly across sources
+# rather than truncating the concatenation, so a long first source can't crowd a later one
+# out entirely — a profile silently built from one of two sources is worse than a short one.
+MAX_TOTAL_SOURCE_CHARS = 20000
 
-    summary = _summarize_person(f"URL: {url}", page_text)
-    _store_summary(summary, url, "url")
-    return f"Learned about user from {url}. Summary: {summary}"
+
+def learn_from_sources(urls=(), texts=()) -> tuple[str, list[str]]:
+    """Build ONE cold-start profile from any mix of public URLs and written text.
+
+    `texts` is a list of (label, content) pairs. Returns (status_message, failed_sources).
+
+    Every source goes into a single summarization call rather than one call each, because
+    the stored profile has exactly one `summary` field — summarizing per source would mean
+    the last one silently overwrote the rest. That was why --profile-url and
+    --profile-text-file used to be mutually exclusive.
+
+    Partial failure is reported, not fatal: if one of two sources is unreachable, a profile
+    built from the other is still usable, but the caller must surface which one was lost so
+    the operator can decide whether to re-run.
+    """
+    blocks, failed = [], []
+
+    for url in urls:
+        page = fetch_page_text(url)
+        if page.startswith("FETCH_ERROR"):
+            failed.append(f"{url} — {page}")
+        elif len(page) < MIN_SOURCE_CHARS:
+            failed.append(f"{url} — almost no text (blocked, or requires login)")
+        else:
+            blocks.append((url, page))
+
+    for label, content in texts:
+        content = (content or "").strip()
+        if len(content) < MIN_SOURCE_CHARS:
+            failed.append(f"{label} — only {len(content)} chars, need {MIN_SOURCE_CHARS}")
+        else:
+            blocks.append((label, content))
+
+    if not blocks:
+        return ("No usable source: " + "; ".join(failed)), failed
+
+    per_source = MAX_TOTAL_SOURCE_CHARS // len(blocks)
+    combined = "\n\n".join(
+        f"--- Source: {label} ---\n{text[:per_source]}" for label, text in blocks
+    )
+    summary = _summarize_person(f"{len(blocks)} source(s) about one person", combined)
+
+    labels = [label for label, _ in blocks]
+    kinds = {"url" if label in urls else "text" for label, _ in blocks}
+    _store_summary(summary, labels, "+".join(sorted(kinds)))
+    return f"Built profile from {len(blocks)} source(s): {', '.join(labels)}", failed
+
+
+def learn_from_url(url: str) -> str:
+    """Fetch the URL, summarize the person, and save it. Returns a status message.
+
+    Kept as the single-source entry point for tools/web.py, the jarvis.py CLI and the eval
+    harness. New callers wanting more than one source should use learn_from_sources.
+    """
+    status, _ = learn_from_sources(urls=[url])
+    return status
 
 
 def learn_from_text(text: str, label: str = "self-reported") -> str:
@@ -107,16 +168,10 @@ def learn_from_text(text: str, label: str = "self-reported") -> str:
 
     Note this is still not equivalent to a scraped profile: self-written text is what
     someone chooses to disclose, a public page is what is already visible. `source_type`
-    records which was used.
+    records which kinds were used.
     """
-    text = text.strip()
-    if len(text) < MIN_SOURCE_CHARS:
-        return (f"Only {len(text)} characters of text — too little to build a profile from "
-                f"(need at least {MIN_SOURCE_CHARS}). Ask for a fuller description.")
-
-    summary = _summarize_person(f"Source: {label}", text)
-    _store_summary(summary, f"{label}:{len(text)}chars", "text")
-    return f"Learned about user from {label}. Summary: {summary}"
+    status, _ = learn_from_sources(texts=[(label, text)])
+    return status
 
 
 def remember_fact(fact: str) -> str:

@@ -33,8 +33,12 @@ Usage:
     python reset_user_state.py --keep-sandbox -y        # leave jarvis_sandbox/ alone
     python reset_user_state.py --no-backup -y           # wipe without archiving
 
-    # arch2: wipe, then seed the incoming participant's cold-start profile
+    # wipe, then seed the incoming participant's cold-start profile. Both flags are
+    # repeatable and combinable; every source is summarized together into one profile.
     python reset_user_state.py --participant P03 --profile-url https://... -y
+    python reset_user_state.py --participant P03 --profile-text-file bio.txt -y
+    python reset_user_state.py --participant P03 --profile-url https://... \
+                               --profile-text-file bio.txt -y
 
 Stdlib only and no imports from the Jarvis modules, so it runs without the venv
 active and without loading the embedder or hitting the Groq API.
@@ -189,34 +193,48 @@ def console_safe(text: str) -> str:
     return text.encode(encoding, errors="replace").decode(encoding, errors="replace")
 
 
-def seed_profile(url: str | None, text_file: Path | None) -> bool:
-    """Store the incoming participant's cold-start profile, from a URL or written text.
+def seed_profile(urls: list, text_files: list) -> bool:
+    """Store the incoming participant's cold-start profile from URLs and/or written text.
 
     Must run AFTER wipe() — wipe writes {} over user_profile.json, so seeding first would
     erase itself. Returns False on any failure, and the caller must treat that as fatal:
     at that point state is already wiped, so continuing leaves an empty profile, which is
     the exact condition that makes an arch2 session behave like arch1.
+
+    All sources are summarized together in one call (learn_from_sources), not one call
+    each — the profile has a single `summary` field, so per-source calls would leave only
+    the last one standing.
     """
-    source_desc = url if url else f"{text_file} (self-written)"
-    print(f"\nSeeding cold-start profile from {source_desc}")
+    described = [str(u) for u in urls] + [f"{p.name} (self-written)" for p in text_files]
+    print(f"\nSeeding cold-start profile from {len(described)} source(s):")
+    for d in described:
+        print(f"    {d}")
     try:
         # Local import on purpose — see the module docstring. This is the only path here
         # that needs the venv.
-        from user_profile import get_profile_summary, learn_from_text, learn_from_url
+        from user_profile import get_profile_summary, learn_from_sources
     except Exception as e:
         print(f"  FAILED to import user_profile: {e}")
         print(r"  Is the venv active? .venv\Scripts\Activate.ps1")
         return False
 
     try:
-        if url:
-            result = learn_from_url(url)
-        else:
-            written = text_file.read_text(encoding="utf-8")
-            result = learn_from_text(written, label=f"self-reported ({text_file.name})")
+        texts = [(f"self-reported ({p.name})", p.read_text(encoding="utf-8"))
+                 for p in text_files]
+        result, failed = learn_from_sources(urls=urls, texts=texts)
     except Exception as e:
         print(f"  FAILED: {e}")
         return False
+
+    # Partial failure is not fatal — a profile built from the surviving sources is still
+    # usable — but it must be impossible to miss, or a participant runs with half the
+    # profile you intended and nothing downstream records that.
+    if failed:
+        print(f"\n  !! {len(failed)} of {len(described)} source(s) FAILED:")
+        for f in failed:
+            print(f"       {console_safe(f)}")
+        if len(failed) < len(described):
+            print("     Profile was built from the remaining source(s). Re-run if that's not what you want.")
 
     # learn_from_url reports a bad fetch or a login-walled page by *returning* a message
     # rather than raising, so its return value alone can't distinguish success from
@@ -243,16 +261,20 @@ def main():
         "--profile-url",
         action="append",
         metavar="URL",
+        default=[],
         help="seed the cold-start profile from this public URL after wiping (needs the "
-             "venv active). Seed once per participant — arch1 simply never reads it.",
+             "venv active). Repeatable, and combinable with --profile-text-file. Seed once "
+             "per participant — arch1 simply never reads it.",
     )
     parser.add_argument(
         "--profile-text-file",
+        action="append",
         metavar="PATH",
-        help="fallback when the participant has no public URL: seed the profile from a "
-             "text file they wrote about themselves. Same summarizer as --profile-url, so "
-             "the stored profile has the same shape. A file rather than an inline string "
-             "because a pasted multi-line bio does not survive shell quoting.",
+        default=[],
+        help="seed the profile from a text file the participant wrote about themselves — "
+             "the fallback when they have no public URL, or an extra source alongside one. "
+             "A file rather than an inline string because a pasted multi-line bio does not "
+             "survive shell quoting. Repeatable.",
     )
     parser.add_argument("--keep-sandbox", action="store_true", help="leave jarvis_sandbox/ contents in place")
     parser.add_argument("--no-backup", action="store_true", help="don't archive current state before wiping")
@@ -265,22 +287,18 @@ def main():
     # listed — a profile that looks like it covers two pages but doesn't. Refuse rather
     # than pick one. Supporting several sources properly means summarizing them together
     # in one call, which user_profile.py does not do yet.
-    if args.profile_url and len(args.profile_url) > 1:
-        parser.error(
-            "--profile-url takes a single URL; user_profile.learn_from_url() cannot merge "
-            "several sources into one summary yet (it would keep only the last)."
-        )
-    profile_url = args.profile_url[0] if args.profile_url else None
+    # Any mix of URLs and text files is allowed: learn_from_sources() summarizes them all
+    # in one call, so no source can silently overwrite another.
+    profile_urls = list(args.profile_url)
+    profile_text_files = [Path(p) for p in args.profile_text_file]
 
-    # Same overwrite problem as two URLs — whichever ran second would win silently.
-    if profile_url and args.profile_text_file:
-        parser.error("pass either --profile-url or --profile-text-file, not both.")
-
-    profile_text_file = Path(args.profile_text_file) if args.profile_text_file else None
     # Checked before the wipe: failing afterwards would leave state cleared with no
-    # profile, which is the one outcome this flag exists to prevent.
-    if profile_text_file and not profile_text_file.is_file():
-        parser.error(f"--profile-text-file: no such file: {profile_text_file}")
+    # profile, which is the one outcome these flags exist to prevent.
+    for path in profile_text_files:
+        if not path.is_file():
+            parser.error(f"--profile-text-file: no such file: {path}")
+
+    seeding = bool(profile_urls or profile_text_files)
 
     include_sandbox = not args.keep_sandbox
 
@@ -313,7 +331,7 @@ def main():
 
     # Strictly after the wipe (which blanks user_profile.json) and after the backup above
     # (which archived the outgoing participant's profile).
-    if (profile_url or profile_text_file) and not seed_profile(profile_url, profile_text_file):
+    if seeding and not seed_profile(profile_urls, profile_text_files):
         print(
             "\n!! STATE IS WIPED AND NO PROFILE WAS STORED.\n"
             "   Arch 2's only personalization layer is empty, so a session started now\n"
@@ -339,7 +357,7 @@ def main():
         print("\nBackend is not running - start it fresh and the conversation history starts empty.")
 
     trailing = "no preference examples." if args.keep_sandbox else "no preference examples, no files."
-    if profile_url or profile_text_file:
+    if seeding:
         print(f"\nArch 2 ready - cold-start profile seeded, no facts, no style, {trailing}")
     else:
         print(f"\nBlank slate - no profile, no facts, no style, {trailing}")

@@ -54,7 +54,8 @@ backend/            — FastAPI WebSocket server wrapping ask_jarvis() for the w
   audio.py          — browser wav bytes <-> voice.transcribe() / speak_to_bytes()
   ratings.py        — appends thumbs up/down rows to study_data/ratings.jsonl
   surveys.py        — appends post-task survey rows to study_data/survey_responses.csv,
-                      and derives the task number from that file
+                      derives the task number and arm position from that file
+summarize_session.py — read a session back: exchanges/task, durations, ratings, surveys
   state.py          — /vitals /directives /documents REST payloads (no longer rendered)
   ws_messages.py    — pydantic schemas for the client/server message contract
 frontend/           — Vite + React + Tailwind study UI (see frontend/src/)
@@ -337,11 +338,35 @@ arm would also read as position 1.
 `seed_profile()` so every other path — including `--status` — stays stdlib-only. Don't
 hoist it.
 
-**One URL only.** `learn_from_url` appends to `sources` but *overwrites* `summary`, so a
-second URL would leave a profile that lists two sources while carrying only the last one's
-summary. The flag rejects a second URL rather than silently picking one. Supporting several
-sources properly means summarizing them together in a single call — user_profile.py does
-not do that yet, and it's worth deciding before a participant offers two links.
+**Sources.** `--profile-url` and `--profile-text-file` are both repeatable and can be
+combined. `learn_from_sources()` fetches everything and summarizes it in **one** call —
+never one call per source, because the profile has a single `summary` field and per-source
+calls would leave only the last one standing. The character budget is split evenly across
+sources so a long page can't crowd out a short bio.
+
+`--profile-text-file` is the fallback for a participant with no public URL (the screener
+normally excludes them, but it's needed for piloting). It runs the *same* summarizer, so
+the stored profile has the same shape — this is the one layer Arch 2 has and it shouldn't
+vary in form by participant. `source_type` records `url`, `text`, or `text+url`; those are
+not equivalent inputs (written text is what someone chooses to disclose, a public page is
+what's already visible) and a result that hinges on the difference should be visible.
+
+Two things the summarizer prompt defends against, both found the hard way:
+
+- **Plain prose, no markdown.** It was emitting bullet lists, which are injected verbatim
+  and only under arch2 — pulling Arch 2 toward bulleted replies is a style difference
+  perfectly confounded with the arm, in an interface that speaks its answers aloud.
+- **Third person, always.** A bio written *about* the participant ("My dad is 54…")
+  produced "Your dad is a 54-year-old…", which under "WHAT YOU KNOW ABOUT THE USER" makes
+  the assistant think its user is the author rather than the subject. Have participants
+  write in first person anyway; the prompt corrects it either way.
+
+Every source must be about the *participant*. Feeding a page about someone else risks the
+merge conflating them.
+
+Partial failure is reported, not fatal: one dead URL alongside a working source still
+produces a profile, with a loud `!! N of M source(s) FAILED` warning. All sources failing
+is fatal (exit 2).
 
 **Label conventions.** Condition is `arch1` or `arch2` (lowercase, matching
 architecture.txt). Participant is `P01`-style, capital P, zero-padded. The participant ID
