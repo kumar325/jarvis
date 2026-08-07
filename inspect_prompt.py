@@ -20,6 +20,7 @@ try:
 except Exception:
     pass
 
+from config import STUDY_CONDITION, profile_injection_enabled
 from system_prompt import build_system_message
 from user_profile import get_profile_summary, get_remembered_facts
 from style_tracker import get_style_summary
@@ -44,14 +45,25 @@ facts = get_remembered_facts()
 style = get_style_summary()
 good, bad = retrieve_examples(query)
 
+# LIVE means "actually reaches the model", not "exists on disk". Under arch1 there is
+# normally a perfectly good profile in user_profile.json that is deliberately not injected,
+# and reporting that as LIVE would make this tool agree with the file instead of with the
+# prompt — exactly the check it exists to provide.
+profile_live = bool(profile) and profile_injection_enabled()
+profile_detail = f"{len(profile)} chars"
+if profile and not profile_injection_enabled():
+    profile_detail += f"  (on disk, suppressed by condition={STUDY_CONDITION})"
+
 rows = [
-    ("2  URL profile (COLD START)", bool(profile), f"{len(profile)} chars"),
+    ("2  URL profile (COLD START)", profile_live, profile_detail),
     ("3  Remembered facts", bool(facts), f"{len(facts)} facts"),
     ("4  Style summary", bool(style), f"{len(style)} chars"),
     ("5  Preference examples", bool(good or bad), f"{len(good)} good / {len(bad)} bad"),
 ]
 
-print(f"\nQuery: {query!r}\n")
+print(f"\nQuery: {query!r}")
+print(f"Condition: {STUDY_CONDITION}  (profile injection "
+      f"{'ON' if profile_injection_enabled() else 'OFF'})\n")
 print(f"{'LAYER':<32} {'LIVE':<6} DETAIL")
 print("-" * 62)
 for name, live, detail in rows:

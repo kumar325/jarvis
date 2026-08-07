@@ -43,6 +43,11 @@ FIELDNAMES = [
     # Not required by the analysis, but it is the only way to tie a survey row back to the
     # exact conversation in ratings.jsonl — those rows carry the same session id.
     "session_id",
+    # 1 if this was the participant's first arm, 2 if their second. Without it, "arch2
+    # scored higher" cannot be separated from "the second arm always scores higher" — the
+    # design is within-subjects, so order is confounded with architecture unless it is
+    # both counterbalanced at the desk and recorded here.
+    "arch_position",
 ]
 
 # Guards the read-modify-write in record_survey(): the task number is derived from the row
@@ -86,9 +91,40 @@ def _append_unlocked(record: dict) -> None:
         writer.writerow(record)
 
 
+def _other_arch_rows_unlocked(participant_id: str, arch: str) -> int:
+    """How many tasks this participant has completed in the *other* arm."""
+    if not SURVEY_PATH.exists():
+        return 0
+    try:
+        with SURVEY_PATH.open("r", encoding="utf-8", newline="") as f:
+            return sum(
+                1
+                for row in csv.DictReader(f)
+                if row.get("participant_id") == participant_id
+                and row.get("arch") not in (arch, None, "")
+            )
+    except OSError:
+        return 0
+
+
 def count_completed_tasks(participant_id: str, arch: str) -> int:
     with _write_lock:
         return _count_unlocked(participant_id, arch)
+
+
+def arch_position(participant_id: str, arch: str) -> int:
+    """Whether this arm is the participant's 1st or 2nd.
+
+    Derived from the log rather than taken from a third env var: the moderator already has
+    two labels to get right, and this one is recoverable from data they can't get wrong.
+    If the other arm has any survey rows for this participant, that arm ran first.
+
+    Caveat worth knowing: an arm abandoned before its first "Finish Task" leaves no rows,
+    so the following arm would also read as position 1. The startup line prints this, so
+    a wrong value is visible before the participant sits down rather than at analysis.
+    """
+    with _write_lock:
+        return 2 if _other_arch_rows_unlocked(participant_id, arch) else 1
 
 
 def record_survey(
@@ -98,6 +134,7 @@ def record_survey(
     personalized_rating: int,
     accuracy_rating: str,
     trust_rating: int,
+    arch_position_value: int,
 ) -> int:
     """Append one survey response and return the task number it was recorded as.
 
@@ -117,6 +154,7 @@ def record_survey(
                 "trust_rating": trust_rating,
                 "timestamp": utc_now_iso(),
                 "session_id": session_id,
+                "arch_position": arch_position_value,
             }
         )
         return task_number

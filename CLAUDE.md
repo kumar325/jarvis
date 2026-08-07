@@ -80,9 +80,27 @@ default and the backend's port in sync (both 8000).
 
 ## Personalization layers (injection order in system prompt)
 
-**This repo is Arch 2** (see jarvis_sandbox/architecture.txt): cold-start URL
-personalization, and nothing else. Arch 1 — the generic no-personalization baseline —
-lives in a separate repo.
+**This repo is BOTH arms** (see architecture.txt). They are the same code — same model,
+same base prompt, same tools, same UI, same survey, same log files. The only difference is
+whether `system_prompt.py` injects the URL-derived profile summary:
+
+- `JARVIS_STUDY_CONDITION=arch2` → injected. The personalized architecture.
+- `JARVIS_STUDY_CONDITION=arch1` → not injected. The generic baseline.
+- anything else (CLI, eval harness) → injected. The baseline must be asked for explicitly.
+
+`config.profile_injection_enabled()` is the single source of that decision;
+`system_prompt.py` acts on it, `backend/server.py` and `inspect_prompt.py` report on it, so
+what gets printed can't disagree with what the model receives.
+
+One repo rather than two on purpose: "personalization is the only variable" then holds by
+construction. With two repos it would depend on keeping the survey, the CSV schema, the
+WebSocket contract and the UI byte-identical by hand — and a drifted *instrument* is a
+worse confound than a drifted treatment, because it's invisible.
+
+The profile is seeded **once per participant**, not per arm, and both arms run against that
+same on-disk state. So under arch1 there is usually a perfectly good summary sitting in
+user_profile.json that must not be injected — which is why the gate is on the arm, never on
+whether the file happens to be populated.
 
 1. Base instructions (personality, tools, grounding, uncertainty calibration)
 2. URL-derived profile summary (from user_profile.json) — **the only personalization layer**
@@ -137,8 +155,8 @@ accurate yes/partially/no, trust 1-5), and all three are mandatory before Submit
 the same disable-until-answered contract as the rating prompt.
 
 Columns: `participant_id, arch, task_number, personalized_rating, accuracy_rating,
-trust_rating, timestamp, session_id`. Append new columns at the end; analysis and Excel
-both depend on the order. `arch` carries the same `arch1`/`arch2` string as ratings.jsonl's
+trust_rating, timestamp, session_id, arch_position`. Append new columns at the end;
+analysis and Excel both depend on the order. `arch` carries the same `arch1`/`arch2` string as ratings.jsonl's
 `condition` — the column is named `arch` per the survey spec, the values match the rest of
 the repo.
 
@@ -248,15 +266,19 @@ python eval/run_eval.py --ablations no_web_search,full --limit 3
 
 ### Running a study session (web UI)
 ```powershell
-# 1. Reset state for the incoming participant. On arch2, seed the cold-start profile in
-#    the same command — see "Cold-start profile" below for why it's not a separate step.
-python reset_user_state.py --participant P03 --profile-url https://... -y   # arch2
-python reset_user_state.py --participant P03 -y                             # arch1
+# 1. ONCE per participant — reset state and seed the cold-start profile. Seed it even
+#    when arch1 runs first: it's per-participant, and arch1 simply never reads it.
+python reset_user_state.py --participant P03 --profile-url https://... -y
 
-# 2. Backend — label the session BEFORE starting it. Both vars are read once at
-#    import, so restart the backend between participants.
-$env:JARVIS_STUDY_CONDITION = "arch2"   # arch1 | arch2 — see label conventions below
+# 2. Backend — label the session BEFORE starting it. Both vars are read once at import,
+#    so restart the backend between arms AND between participants.
+$env:JARVIS_STUDY_CONDITION = "arch1"   # arch1 | arch2 — see label conventions below
 $env:JARVIS_PARTICIPANT_ID  = "P03"     # P01, P02, ... zero-padded
+.venv\Scripts\python.exe -m uvicorn backend.server:app --port 8000
+
+# 3. BETWEEN ARMS (same participant): no reset, no re-scrape. Restart the backend with
+#    the other condition and reload the browser tab (which clears the conversation).
+$env:JARVIS_STUDY_CONDITION = "arch2"
 .venv\Scripts\python.exe -m uvicorn backend.server:app --port 8000
 
 # Frontend (separate terminal)
@@ -287,8 +309,28 @@ by accident:
 2. **The backend refuses to start** when `JARVIS_STUDY_CONDITION=arch2` and the profile is
    empty. It checks `get_profile_summary()` — the same function system_prompt.py injects
    from, so the check can't drift from what the model actually sees. Scoped to an
-   explicitly-labeled arch2 process: an unlabeled dev run (`unspecified`) and arch1 are
-   both unaffected. `JARVIS_ALLOW_EMPTY_PROFILE=1` overrides it for wiring tests.
+   explicitly-labeled arch2 process: an unlabeled dev run (`unspecified`) is unaffected.
+   `JARVIS_ALLOW_EMPTY_PROFILE=1` overrides it for wiring tests.
+
+   Under `arch1` the same function prints the mirror-image confirmation — `arch1 baseline —
+   profile injection OFF (N chars on disk, deliberately not injected)`. There are two ways
+   to serve the wrong architecture, not one: arch2 with an empty profile behaves like the
+   baseline, and arch1 still injecting behaves like arch2. Both would stamp their claimed
+   condition on every row, and neither is detectable afterwards.
+
+### Arm order (within-subjects design)
+
+Each participant does all three tasks under **both** arms, so order is confounded with
+architecture unless it is counterbalanced *and* recorded. Alternate at the desk
+(P01: arch1→arch2, P02: arch2→arch1, …) — the code can only record the order, not choose it.
+
+`arch_position` (1 or 2) is stamped on every ratings.jsonl row and every survey CSV row.
+It is **derived**, not another env var: at startup the backend checks whether the *other*
+arch already has survey rows for this participant. The moderator has two labels to get
+right already, and this one is recoverable from data they can't get wrong. It prints in
+the startup line (`arm=2 of 2`), so a wrong value is visible before the participant sits
+down. Caveat: an arm abandoned before its first "Finish Task" leaves no rows, so the next
+arm would also read as position 1.
 
 `--profile-url` is the one code path in reset_user_state.py that imports a Jarvis module
 (and therefore needs the venv active, the network, and a Groq key). The import is local to
@@ -301,13 +343,12 @@ summary. The flag rejects a second URL rather than silently picking one. Support
 sources properly means summarizing them together in a single call — user_profile.py does
 not do that yet, and it's worth deciding before a participant offers two links.
 
-**Label conventions — keep identical across both machines and both repos.** Condition is
-`arch1` or `arch2` (lowercase, matching architecture.txt). Participant is `P01`-style,
-capital P, zero-padded. The participant ID is the only join key between a participant's
-arch1 and arch2 rating logs — session IDs are per-connection and can't pair them — and
-the two arms write to separate files on separate laptops, so a variant spelling means
-reconciling by hand after data collection. Use the same string for
-`reset_user_state.py --participant P03`.
+**Label conventions.** Condition is `arch1` or `arch2` (lowercase, matching
+architecture.txt). Participant is `P01`-style, capital P, zero-padded. The participant ID
+is the only join key between a participant's arch1 and arch2 rows — session IDs are
+per-connection and can't pair them — so a variant spelling means reconciling by hand after
+data collection. It also breaks `arch_position` derivation, which matches on that string.
+Use the same string for `reset_user_state.py --participant P03`.
 
 ---
 

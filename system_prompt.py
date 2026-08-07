@@ -1,16 +1,22 @@
 """Build the system prompt: static base instructions + the URL-derived profile summary.
 
-Arch 2 (jarvis_sandbox/architecture.txt) isolates ONE personalization mechanism — the
-cold-start profile scraped from the participant's public URL before the session. The other
-three layers this module used to inject (remembered facts, style mirroring, preference
-examples) are deliberately gone: each was a second personalization channel that would make
-it impossible to attribute a result to the cold-start profile alone. Their modules
+Arch 2 (architecture.txt) isolates ONE personalization mechanism — the cold-start profile
+scraped from the participant's public URL before the session. The other three layers this
+module used to inject (remembered facts, style mirroring, preference examples) are
+deliberately gone: each was a second personalization channel that would make it impossible
+to attribute a result to the cold-start profile alone. Their modules
 (user_profile.remember_fact, style_tracker, preferences) still exist and are still used by
 the jarvis.py CLI and the eval harness — they are simply no longer injected here.
+
+Arch 1, the generic baseline, is THIS module with that one injection switched off — same
+base instructions, same tools, same everything else. Both arms being one codebase is what
+makes "personalization is the only variable" true by construction rather than by keeping
+two repos in sync.
 """
 from datetime import datetime
 
 from langchain_core.messages import SystemMessage
+from config import profile_injection_enabled
 from user_profile import get_profile_summary
 
 
@@ -84,8 +90,15 @@ def build_system_message(current_query):
 
     # The one personalization layer in Arch 2: the summary built from the participant's
     # public URL before the session starts, fixed for its duration.
-    profile_summary = get_profile_summary()
-    if profile_summary:
-        base += f"\n\nWHAT YOU KNOW ABOUT THE USER (from their public profile):\n{profile_summary}"
+    #
+    # Gated on the arm rather than on whether a profile happens to exist on disk. The
+    # profile is seeded once per participant and BOTH arms then run against that same
+    # on-disk state — so under arch1 there is usually a perfectly good summary sitting in
+    # user_profile.json that must not be injected. Checking the file alone would silently
+    # turn the baseline into Arch 2 whenever arch1 runs second.
+    if profile_injection_enabled():
+        profile_summary = get_profile_summary()
+        if profile_summary:
+            base += f"\n\nWHAT YOU KNOW ABOUT THE USER (from their public profile):\n{profile_summary}"
 
     return SystemMessage(content=base)

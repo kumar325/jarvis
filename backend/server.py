@@ -27,6 +27,7 @@ from pydantic import ValidationError
 from starlette.concurrency import run_in_threadpool
 
 from agent_loop import ask_jarvis, clear_conversation
+from config import PARTICIPANT_ID, STUDY_CONDITION, profile_injection_enabled
 
 # Collected on the web path so a browser study session produces the same on-disk state a
 # jarvis.py CLI session does. Write path ONLY — neither file is read back into the system
@@ -76,26 +77,21 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Which arm of the study this process is serving (jarvis_sandbox/architecture.txt:
-# arch1 = generic baseline, arch2 = URL cold-start personalization), recorded on every
-# rating so the two phases can be told apart at analysis time. Set it when launching:
-#   $env:JARVIS_STUDY_CONDITION = "arch1"   (or "arch2")
-# Left "unspecified" rather than guessing a default — an unlabeled rating is obvious in
-# the log, a wrongly-labeled one is not.
-STUDY_CONDITION = os.environ.get("JARVIS_STUDY_CONDITION", "unspecified")
-
-# Pseudonymous participant code (P01, P02, ...), matching reset_user_state.py's
-# --participant labels. This is what joins one participant's arch1 ratings to their arch2
-# ratings when the two arms run on separate machines writing separate log files — session
-# ids are per-connection and can't do it. Deliberately a code, not a name: the protocol
-# keeps identity separate from task responses, so the code-to-person mapping lives outside
-# this repo.
-PARTICIPANT_ID = os.environ.get("JARVIS_PARTICIPANT_ID", "unassigned")
+# Both study labels now live in config.py — system_prompt.py needs the condition too (it
+# is what switches the arch1 baseline on), and two modules reading the same env var
+# independently is how they drift apart.
+#
+# Which arm this process serves, and which of the participant's two arms it is. The
+# position is derived from the survey log rather than taken from a third env var: the
+# moderator already has two labels to get right, and order is confounded with architecture
+# in a within-subjects design unless it is both counterbalanced at the desk and recorded.
+ARCH_POSITION = surveys.arch_position(PARTICIPANT_ID, STUDY_CONDITION)
 
 # Printed to the operator's terminal (never to the participant's screen) so a mislabeled
 # session is caught before it's run rather than found at analysis time.
 print(
     f"[jarvis] study condition={STUDY_CONDITION} participant={PARTICIPANT_ID} "
+    f"arm={ARCH_POSITION} of 2 "
     f"-> {ratings.RATINGS_PATH.relative_to(Path(__file__).resolve().parent.parent)}",
     flush=True,
 )
@@ -119,18 +115,42 @@ ALLOW_EMPTY_PROFILE = os.environ.get("JARVIS_ALLOW_EMPTY_PROFILE") == "1"
 
 
 def check_cold_start_profile():
-    """Refuse to serve an arch2 session with no cold-start profile.
+    """Confirm the profile layer matches the arm this process claims to be serving.
 
-    The URL-derived summary is Arch 2's ONLY personalization layer (system_prompt.py).
-    With it empty, the process still answers normally and still stamps `arch2` on every
-    rating and survey row — so the session looks fine, produces data, and is actually
-    running the arch1 baseline. Nothing downstream can detect that after the fact, which
-    is why it has to be caught before the participant sits down.
+    The URL-derived summary is Arch 2's ONLY personalization layer (system_prompt.py), and
+    both arms run against the same on-disk state — the profile is seeded once per
+    participant and the arm decides whether it is injected. So there are two ways to serve
+    a session that is silently the wrong architecture, and neither is visible at runtime:
 
-    Scoped to an explicitly-labeled arch2 process: an unlabeled dev run leaves
-    STUDY_CONDITION at "unspecified" and is not affected. arch1 is supposed to have no
-    profile, so it isn't checked either.
+      arch2 with an empty profile  -> behaves like the arch1 baseline
+      arch1 still injecting        -> behaves like arch2
+
+    Both would still stamp their claimed condition on every rating and survey row, and
+    nothing downstream could detect it afterwards. Hence the check here, before the
+    participant sits down.
     """
+    if STUDY_CONDITION == "arch1":
+        # Not a failure — arch1 is *supposed* to leave a seeded profile untouched, which
+        # is exactly why it's worth printing. It's the operator's confirmation that the
+        # baseline is really running as a baseline.
+        if profile_injection_enabled():
+            print(
+                "\n  REFUSING TO START: condition is arch1 but profile injection is ON.\n"
+                "  config.profile_injection_enabled() and STUDY_CONDITION disagree.\n",
+                flush=True,
+            )
+            raise SystemExit(1)
+        try:
+            on_disk = len(get_profile_summary().strip())
+        except Exception:
+            on_disk = 0
+        log_operator(
+            f"arch1 baseline — profile injection OFF"
+            + (f" ({on_disk} chars on disk, deliberately not injected)" if on_disk
+               else " (no profile on disk)")
+        )
+        return
+
     if STUDY_CONDITION != "arch2":
         return
 
@@ -421,6 +441,10 @@ async def ws_endpoint(websocket: WebSocket):
             "session_id": session_id,
             "participant_id": PARTICIPANT_ID,
             "condition": STUDY_CONDITION,
+            # Which of the participant's two arms this was. Same reason the survey CSV
+            # carries it: order is confounded with architecture in a within-subjects
+            # design unless it's recorded.
+            "arch_position": ARCH_POSITION,
             "message_id": incoming.message_id,
             "rating": incoming.rating,
             "rated_at": ratings.utc_now_iso(),
@@ -464,6 +488,7 @@ async def ws_endpoint(websocket: WebSocket):
                 incoming.personalized_rating,
                 incoming.accuracy_rating,
                 incoming.trust_rating,
+                ARCH_POSITION,
             )
         except Exception as e:
             # Unlike a rating, this is NOT acknowledged optimistically. A rating is one of
@@ -478,7 +503,7 @@ async def ws_endpoint(websocket: WebSocket):
 
         log_operator(
             f"task survey recorded: participant={PARTICIPANT_ID} arch={STUDY_CONDITION} "
-            f"task={task_number} -> {surveys.SURVEY_PATH.name}"
+            f"arm={ARCH_POSITION} task={task_number} -> {surveys.SURVEY_PATH.name}"
         )
         await send_json_safe(
             SurveyRecordedMessage(

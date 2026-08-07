@@ -1,7 +1,41 @@
-"""Centralized configuration: paths, model names, voice settings."""
+"""Centralized configuration: paths, model names, voice settings, study labels."""
+import os
 from pathlib import Path
 from dotenv import load_dotenv
 load_dotenv()
+
+# Study session labels
+#
+# Which arm of the study this process is serving (architecture.txt). Both arms are THIS
+# codebase — same model, same base prompt, same tools, same UI. The only difference is
+# whether system_prompt.py injects the URL-derived profile summary:
+#   arch1 — injection off. The generic baseline.
+#   arch2 — injection on. The personalized architecture being evaluated.
+#
+# Read here rather than in backend/server.py because system_prompt.py needs it too, and
+# two modules reading the same env var independently is how they drift apart. Set it when
+# launching:  $env:JARVIS_STUDY_CONDITION = "arch1"
+#
+# Anything other than "arch1" leaves the profile injected, so the baseline has to be asked
+# for explicitly — an unlabeled run is full Jarvis (which is what the CLI and the eval
+# harness want), never a silent baseline.
+STUDY_CONDITION = os.environ.get("JARVIS_STUDY_CONDITION", "unspecified")
+
+# Pseudonymous participant code (P01, P02, ...), matching reset_user_state.py's
+# --participant labels. The only join key between a participant's arch1 and arch2 rows.
+# Deliberately a code, not a name: the protocol keeps identity separate from task
+# responses, so the code-to-person mapping lives outside this repo.
+PARTICIPANT_ID = os.environ.get("JARVIS_PARTICIPANT_ID", "unassigned")
+
+
+def profile_injection_enabled() -> bool:
+    """Whether the cold-start profile is injected into the system prompt for this run.
+
+    The single source of truth for the arch1/arch2 difference — system_prompt.py acts on
+    it, and backend/server.py + inspect_prompt.py report on it, so what gets printed can't
+    disagree with what the model actually receives.
+    """
+    return STUDY_CONDITION != "arch1"
 
 # Paths
 #
