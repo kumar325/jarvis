@@ -1,0 +1,49 @@
+Architectures
+Arch 1 — Generic AI Baseline
+The same assistant as Arch 2 — same model (openai/gpt-oss-120b), same base system prompt, same tools (web search, file sandbox), same voice interface — with the cold-start profile injection disabled. No profile text is added to the system prompt — whether or not a URL has been scraped for that participant — so every participant receives an identical assistant. Represents a competent off-the-shelf AI assistant that happens to know nothing about the user.
+Arch 2 — Jarvis with Cold-Start Personalization
+Jarvis with URL cold-start active. Before the session, the participant provides one public URL (LinkedIn or GitHub). Jarvis scrapes it, builds a profile summary, and injects it into the system prompt. Represents the personalized architecture being evaluated.
+Both architectures run the same model, the same base system prompt, and the same tools. The only difference is whether the URL-derived profile summary is injected into the system prompt — so personalization is the only variable being tested.
+
+
+Screener Survey
+Sent before the session to decide who to invite.
+What is your age? (must be 18–25)
+What is your major and year in school?
+Do you have a public LinkedIn, GitHub, or personal website you would be comfortable sharing for research purposes? (yes / no)
+How often do you use AI assistants like ChatGPT or Claude? (never / occasionally / regularly / daily)
+What is your personal background — where are you from, what are your interests, and anything else you feel comfortable sharing?
+
+The Three Tasks
+Fixed scripts — read to the participant exactly as written. Same 3 tasks for both architectures.
+Task 1 — Design a Perfect Outing with Friends
+Read to participant:
+"Ask the assistant to help you plan a perfect date. It can be a date with someone else or just a fun day out for yourself — whatever feels natural. See how well it matches what you'd actually enjoy."
+What we are measuring: Does Arch 2 tailor the date plan to the participant's actual personality, interests, and background from their profile? Does Arch 1 give a generic plan that could apply to anyone?
+Success signal for Arch 2: Suggests activities, venues, or experiences that reflect something specific about the participant without them having to explain themselves.
+
+Task 2 — Suggest a Daily Routine
+Read to participant:
+"Ask the assistant to suggest a daily routine for you — something that fits your lifestyle, goals, and schedule. See whether it actually reflects who you are."
+What we are measuring: Does Arch 2 produce a routine that accounts for the participant's field of study, habits, or goals from their profile? Does Arch 1 give a one-size-fits-all routine?
+Success signal for Arch 2: Routine reflects the participant's actual background — major, career goals, or lifestyle — without being prompted.
+
+Task 3 — Help Me Find an Internship
+Read to participant:
+"Ask the assistant to help you find internship opportunities that match your background and interests. See how relevant the suggestions actually are to you."
+What we are measuring: Does Arch 2 recommend opportunities tailored to the participant's actual skills, major, and experience? Does Arch 1 give generic advice that doesn't fit?
+Success signal for Arch 2: Mentions the participant's specific field, relevant skills, or appropriate experience level without the participant having to explain their background first.
+
+Post-Task Evaluation Survey
+Asked after each architecture (same 3 questions repeated for both Arch 1 and Arch 2).
+Per task, per architecture:
+Did this feel personalized to you? (1–5)
+Do the recommendations seem accurate? (yes / partially / no)
+Would you trust this suggestion? (1–5)
+
+What to Reset Between Participants
+user_profile.json — clear remembered facts and profile summary
+preferences.json — clear all preference pairs
+user_style.json — clear style summary
+Re-run URL scraper fresh with new participant's URL for Arch 2
+
