@@ -248,8 +248,13 @@ python eval/run_eval.py --ablations no_web_search,full --limit 3
 
 ### Running a study session (web UI)
 ```powershell
-# Backend — label the session BEFORE starting it. Both vars are read once at
-# import, so restart the backend between participants.
+# 1. Reset state for the incoming participant. On arch2, seed the cold-start profile in
+#    the same command — see "Cold-start profile" below for why it's not a separate step.
+python reset_user_state.py --participant P03 --profile-url https://... -y   # arch2
+python reset_user_state.py --participant P03 -y                             # arch1
+
+# 2. Backend — label the session BEFORE starting it. Both vars are read once at
+#    import, so restart the backend between participants.
 $env:JARVIS_STUDY_CONDITION = "arch2"   # arch1 | arch2 — see label conventions below
 $env:JARVIS_PARTICIPANT_ID  = "P03"     # P01, P02, ... zero-padded
 .venv\Scripts\python.exe -m uvicorn backend.server:app --port 8000
@@ -265,6 +270,36 @@ It also prints one line per post-task survey (`task survey recorded: participant
 task=…`). Since the task number is derived from survey_responses.csv, that line is the
 cheapest check that the label vars are right — a survey landing as task 1 when you expected
 task 3 means the participant or arch string doesn't match the earlier rows.
+
+### Cold-start profile (arch2 only)
+
+The URL-derived summary is Arch 2's **only** personalization layer. With it empty, the
+backend still answers normally and still stamps `arch2` on every rating and survey row — so
+the session looks fine, produces data, and is actually running the arch1 baseline. Nothing
+downstream can detect that afterwards. Two mechanisms exist so that state can't be reached
+by accident:
+
+1. **`reset_user_state.py --profile-url <URL>`** seeds it as the last step of the reset,
+   after the wipe (which blanks user_profile.json) and after the archive. One command per
+   participant rather than two, because a separate seeding step is one that gets skipped.
+   If the fetch or the Groq call fails it exits **2** with a loud banner — at that point
+   state is already wiped, so a silent failure is exactly the dangerous case.
+2. **The backend refuses to start** when `JARVIS_STUDY_CONDITION=arch2` and the profile is
+   empty. It checks `get_profile_summary()` — the same function system_prompt.py injects
+   from, so the check can't drift from what the model actually sees. Scoped to an
+   explicitly-labeled arch2 process: an unlabeled dev run (`unspecified`) and arch1 are
+   both unaffected. `JARVIS_ALLOW_EMPTY_PROFILE=1` overrides it for wiring tests.
+
+`--profile-url` is the one code path in reset_user_state.py that imports a Jarvis module
+(and therefore needs the venv active, the network, and a Groq key). The import is local to
+`seed_profile()` so every other path — including `--status` — stays stdlib-only. Don't
+hoist it.
+
+**One URL only.** `learn_from_url` appends to `sources` but *overwrites* `summary`, so a
+second URL would leave a profile that lists two sources while carrying only the last one's
+summary. The flag rejects a second URL rather than silently picking one. Supporting several
+sources properly means summarizing them together in a single call — user_profile.py does
+not do that yet, and it's worth deciding before a participant offers two links.
 
 **Label conventions — keep identical across both machines and both repos.** Condition is
 `arch1` or `arch2` (lowercase, matching architecture.txt). Participant is `P01`-style,

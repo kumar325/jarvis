@@ -39,6 +39,10 @@ from agent_loop import ask_jarvis, clear_conversation
 # .state already imports preferences transitively, so the embedder is loaded either way.
 from preferences import save_pref
 from style_tracker import record_utterance
+# Read at startup only, to verify the arch2 personalization layer is actually populated —
+# this is the same function system_prompt.py injects from, so the check can't drift from
+# what the model will really see.
+from user_profile import get_profile_summary
 
 from . import audio, ratings, state, surveys
 from .ws_messages import (
@@ -107,6 +111,60 @@ def log_operator(message: str):
     must not change what the participant sees or can do.
     """
     print(f"[jarvis] {message}", flush=True)
+
+
+# Escape hatch for testing the arch2 wiring without a real participant's URL. Deliberately
+# an explicit opt-in: the failure it bypasses is invisible at runtime.
+ALLOW_EMPTY_PROFILE = os.environ.get("JARVIS_ALLOW_EMPTY_PROFILE") == "1"
+
+
+def check_cold_start_profile():
+    """Refuse to serve an arch2 session with no cold-start profile.
+
+    The URL-derived summary is Arch 2's ONLY personalization layer (system_prompt.py).
+    With it empty, the process still answers normally and still stamps `arch2` on every
+    rating and survey row — so the session looks fine, produces data, and is actually
+    running the arch1 baseline. Nothing downstream can detect that after the fact, which
+    is why it has to be caught before the participant sits down.
+
+    Scoped to an explicitly-labeled arch2 process: an unlabeled dev run leaves
+    STUDY_CONDITION at "unspecified" and is not affected. arch1 is supposed to have no
+    profile, so it isn't checked either.
+    """
+    if STUDY_CONDITION != "arch2":
+        return
+
+    try:
+        summary = get_profile_summary().strip()
+    except Exception as e:
+        log_operator(f"could not read user_profile.json: {e}")
+        summary = ""
+
+    if summary:
+        log_operator(f"cold-start profile loaded ({len(summary)} chars)")
+        return
+
+    banner = (
+        "\n"
+        "  REFUSING TO START: condition is arch2 but the cold-start profile is empty.\n"
+        "\n"
+        "  Arch 2's only personalization layer is the summary built from the participant's\n"
+        "  public URL. Running now would label the session arch2 while behaving like arch1.\n"
+        "\n"
+        "  Seed it first:\n"
+        "    python reset_user_state.py --participant P0X --profile-url https://... -y\n"
+        "\n"
+        "  Or set JARVIS_ALLOW_EMPTY_PROFILE=1 to run anyway (wiring tests, not participants).\n"
+    )
+    if ALLOW_EMPTY_PROFILE:
+        log_operator("WARNING: arch2 with an EMPTY cold-start profile — "
+                     "JARVIS_ALLOW_EMPTY_PROFILE=1 is set, so this is not a participant session")
+        return
+    print(banner, flush=True)
+    raise SystemExit(1)
+
+
+check_cold_start_profile()
 
 
 # Bounds the per-connection pending-exchange map. Ratings are mandatory in the UI, so in

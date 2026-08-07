@@ -33,8 +33,17 @@ Usage:
     python reset_user_state.py --keep-sandbox -y        # leave jarvis_sandbox/ alone
     python reset_user_state.py --no-backup -y           # wipe without archiving
 
+    # arch2: wipe, then seed the incoming participant's cold-start profile
+    python reset_user_state.py --participant P03 --profile-url https://... -y
+
 Stdlib only and no imports from the Jarvis modules, so it runs without the venv
 active and without loading the embedder or hitting the Groq API.
+
+--profile-url is the ONE exception. It imports user_profile (and therefore
+langchain_groq), needs the venv active, and makes a network call plus a Groq
+call. The import is local to seed_profile() so every other path keeps the
+property above. Everything else in this file stays stdlib-only — don't hoist
+that import to the top.
 """
 import argparse
 import json
@@ -167,14 +176,88 @@ def wipe(include_sandbox: bool):
     RECORDING.unlink(missing_ok=True)
 
 
+def console_safe(text: str) -> str:
+    """Make LLM/scraped text printable on whatever encoding this console uses.
+
+    The profile summary is model output built from a scraped page, so it routinely carries
+    non-breaking hyphens, curly quotes and en dashes that a cp1252 Windows console cannot
+    encode. Printing it raw raises UnicodeEncodeError *after* the profile has already been
+    saved — which turns a successful seed into a traceback and a non-zero exit, exactly
+    when the operator is trying to confirm the seed worked.
+    """
+    encoding = sys.stdout.encoding or "utf-8"
+    return text.encode(encoding, errors="replace").decode(encoding, errors="replace")
+
+
+def seed_profile(url: str) -> bool:
+    """Fetch the incoming participant's public URL and store the cold-start summary.
+
+    Must run AFTER wipe() — wipe writes {} over user_profile.json, so seeding first would
+    erase itself. Returns False on any failure, and the caller must treat that as fatal:
+    at that point state is already wiped, so continuing leaves an empty profile, which is
+    the exact condition that makes an arch2 session behave like arch1.
+    """
+    print(f"\nSeeding cold-start profile from {url}")
+    try:
+        # Local import on purpose — see the module docstring. This is the only path here
+        # that needs the venv.
+        from user_profile import get_profile_summary, learn_from_url
+    except Exception as e:
+        print(f"  FAILED to import user_profile: {e}")
+        print(r"  Is the venv active? .venv\Scripts\Activate.ps1")
+        return False
+
+    try:
+        result = learn_from_url(url)
+    except Exception as e:
+        print(f"  FAILED: {e}")
+        return False
+
+    # learn_from_url reports a bad fetch or a login-walled page by *returning* a message
+    # rather than raising, so its return value alone can't distinguish success from
+    # failure. Read back what the system prompt will actually inject instead.
+    try:
+        summary = get_profile_summary().strip()
+    except Exception as e:
+        print(f"  FAILED to read back the stored profile: {e}")
+        return False
+
+    if not summary:
+        print(f"  FAILED - nothing was stored. {console_safe(result)}")
+        return False
+
+    print(f"  Stored {len(summary)} chars.")
+    print(f"  {console_safe(summary[:400])}{'...' if len(summary) > 400 else ''}")
+    return True
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--participant", help="label for the archive dir (default: reset_<timestamp>)")
+    parser.add_argument(
+        "--profile-url",
+        action="append",
+        metavar="URL",
+        help="arch2 only: after wiping, seed the cold-start profile from this public URL "
+             "(needs the venv active). Omit for arch1, which has no personalization layer.",
+    )
     parser.add_argument("--keep-sandbox", action="store_true", help="leave jarvis_sandbox/ contents in place")
     parser.add_argument("--no-backup", action="store_true", help="don't archive current state before wiping")
     parser.add_argument("-y", "--yes", action="store_true", help="skip the confirmation prompt")
     parser.add_argument("--status", action="store_true", help="show current state and exit without changing anything")
     args = parser.parse_args()
+
+    # learn_from_url appends to profile["sources"] but OVERWRITES profile["summary"], so a
+    # second URL would silently discard the first one's summary while leaving its source
+    # listed — a profile that looks like it covers two pages but doesn't. Refuse rather
+    # than pick one. Supporting several sources properly means summarizing them together
+    # in one call, which user_profile.py does not do yet.
+    if args.profile_url and len(args.profile_url) > 1:
+        parser.error(
+            "--profile-url takes a single URL; user_profile.learn_from_url() cannot merge "
+            "several sources into one summary yet (it would keep only the last)."
+        )
+    profile_url = args.profile_url[0] if args.profile_url else None
 
     include_sandbox = not args.keep_sandbox
 
@@ -205,7 +288,20 @@ def main():
 
     wipe(include_sandbox)
 
-    print("Reset complete. Jarvis now has:")
+    # Strictly after the wipe (which blanks user_profile.json) and after the backup above
+    # (which archived the outgoing participant's profile).
+    if profile_url and not seed_profile(profile_url):
+        print(
+            "\n!! STATE IS WIPED AND NO PROFILE WAS STORED.\n"
+            "   Arch 2's only personalization layer is empty, so a session started now\n"
+            "   would be labeled arch2 while behaving like arch1 — and every rating and\n"
+            "   survey row would carry the wrong condition.\n"
+            "   Fix the URL (or the network, or GROQ_API_KEY) and re-run with --profile-url.\n"
+            f"   The backend refuses to start in this state when JARVIS_STUDY_CONDITION=arch2."
+        )
+        return 2
+
+    print("\nReset complete. Jarvis now has:")
     print_state(include_sandbox)
     if args.keep_sandbox:
         print("\nSandbox left untouched (--keep-sandbox) - the next participant can read those files.")
@@ -220,7 +316,17 @@ def main():
         print("\nBackend is not running - start it fresh and the conversation history starts empty.")
 
     trailing = "no preference examples." if args.keep_sandbox else "no preference examples, no files."
-    print(f"\nBlank slate - no profile, no facts, no style, {trailing}")
+    if profile_url:
+        print(f"\nArch 2 ready - cold-start profile seeded, no facts, no style, {trailing}")
+    else:
+        print(f"\nBlank slate - no profile, no facts, no style, {trailing}")
+        # Correct for arch1, fatal for arch2, and the two are told apart only by an env
+        # var set in another terminal — so say it here rather than assume the right one.
+        print(
+            "\n  No --profile-url given. That is correct for arch1 and WRONG for arch2:\n"
+            "  the cold-start profile is arch2's only personalization layer. The backend\n"
+            "  refuses to start with JARVIS_STUDY_CONDITION=arch2 and an empty profile."
+        )
     return 0
 
 
