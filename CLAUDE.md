@@ -48,7 +48,7 @@ inspect_prompt.py   — dump the assembled system prompt for debugging
 tools/
   web.py            — Tavily search + verify_search_result (llm_raw cross-source check)
   files.py          — sandboxed file tools with two-step delete confirmation
-  __init__.py       — TOOLS list; remember/forget deliberately NOT bound (see layers)
+  __init__.py       — TOOLS list; remember/forget/learn_about_user NOT bound (see layers)
 backend/            — FastAPI WebSocket server wrapping ask_jarvis() for the web UI
   server.py         — /ws endpoint, TTS state, rating + set_tts control messages
   audio.py          — browser wav bytes <-> voice.transcribe() / speak_to_bytes()
@@ -111,7 +111,11 @@ alone, rather than to whichever mechanism happened to fire:
 
 - **Remembered facts** — removed, along with `remember`/`forget` from `tools/__init__.py`.
   The model calling `remember` mid-session was a second personalization channel that
-  accumulated during the three tasks.
+  accumulated during the three tasks. `learn_about_user` was unbound for the same reason
+  and is the most damaging of the three: it wraps `learn_from_url`, which *overwrites*
+  `profile["summary"]`, so one mid-session link would discard the seeded cold start
+  entirely. Seeding happens once per participant, in reset_user_state.py, before the
+  session.
 - **Style summary** — removed from the prompt. Still *collected*: `backend/server.py`
   calls `record_utterance` on every web turn.
 - **Preference examples** — removed from the prompt. Still *collected*:
@@ -392,10 +396,14 @@ Use the same string for `reset_user_state.py --participant P03`.
 
 ## What NOT to do
 - Do not modify user_profile.json directly — use remember_fact() / forget_fact()
-- Do not re-add remembered facts, style, or preference examples to the system prompt,
-  or re-bind remember/forget in tools/__init__.py. Each one is a second personalization
-  channel and reintroducing it makes an Arch 2 result unattributable to the cold-start
-  profile. If a layer genuinely needs to come back, that's a study-design decision.
+- Do not re-add remembered facts, style, or preference examples to the system prompt, or
+  re-bind remember/forget/learn_about_user in tools/__init__.py. Each one is a second
+  personalization channel and reintroducing it makes an Arch 2 result unattributable to the
+  cold-start profile. If a layer genuinely needs to come back, that's a study-design
+  decision. `learn_about_user` is the sharpest of the three — it overwrites the seeded
+  summary outright, so a participant volunteering a link mid-session would replace the
+  cold start with a warm one, and if that happened in the first arm the second arm would
+  run against a different profile.
 - Do not hand-edit or delete rows from study_data/survey_responses.csv mid-study — the
   next task number is counted from it, so removing a row makes the following survey
   overwrite that task's slot. Fix it after data collection, not during.
