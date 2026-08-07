@@ -53,13 +53,16 @@ backend/            — FastAPI WebSocket server wrapping ask_jarvis() for the w
   server.py         — /ws endpoint, TTS state, rating + set_tts control messages
   audio.py          — browser wav bytes <-> voice.transcribe() / speak_to_bytes()
   ratings.py        — appends thumbs up/down rows to study_data/ratings.jsonl
+  surveys.py        — appends post-task survey rows to study_data/survey_responses.csv,
+                      and derives the task number from that file
   state.py          — /vitals /directives /documents REST payloads (no longer rendered)
   ws_messages.py    — pydantic schemas for the client/server message contract
 frontend/           — Vite + React + Tailwind study UI (see frontend/src/)
-  src/App.tsx       — wiring: socket, audio capture, input mode, rating gate
+  src/App.tsx       — wiring: socket, audio capture, input mode, rating gate, survey gate
   src/hooks/        — useJarvisSocket, useAudioCapture, useAudioPlayback, useOrbAmplitude
-  src/components/   — layout/ (Header, Clock, MuteButton, Shell), center/ (Orb,
-                      Conversation, CommandInput, RatingPrompt)
+  src/components/   — layout/ (Header, Clock, MuteButton, FinishTaskButton, Shell),
+                      center/ (Orb, Conversation, CommandInput, RatingPrompt, TaskSurvey,
+                      ArchCompleteNotice)
 eval/
   run_eval.py       — ablation harness, writes CSV to eval/results/
   ablations.py      — capture_tool_trace, apply_ablation, snapshot_system_state
@@ -124,6 +127,38 @@ is the cheapest end-to-end check that collection is working.
 Mute/unmute phrases ("talk off", "mute") are recorded by the CLI but deliberately NOT by
 the web path — `record_utterance` sits after the `parse_tts_command` guard, since a
 control phrase is not a speech sample worth mirroring.
+
+### Post-task survey (study_data/survey_responses.csv)
+
+Separate from the per-response thumbs up/down, which is unchanged and still fires on every
+model reply. The survey is one row per *task*: the moderator clicks **Finish Task** in the
+header, the orb and input are replaced by a three-question card (personalized 1-5,
+accurate yes/partially/no, trust 1-5), and all three are mandatory before Submit unlocks —
+the same disable-until-answered contract as the rating prompt.
+
+Columns: `participant_id, arch, task_number, personalized_rating, accuracy_rating,
+trust_rating, timestamp, session_id`. Append new columns at the end; analysis and Excel
+both depend on the order. `arch` carries the same `arch1`/`arch2` string as ratings.jsonl's
+`condition` — the column is named `arch` per the survey spec, the values match the rest of
+the repo.
+
+Two design points worth not undoing:
+
+- **The server assigns `task_number`**, by counting existing rows for this
+  (participant, arch) — the client never sends it. A browser refresh resets all frontend
+  state, so a client-owned counter would restart at 1 and log two rows as task 1.
+  `reset_user_state.py` never touches this file (it only clears the three personalization
+  JSONs and archives *into* study_data/), so the count survives resets and restarts.
+- **Submission is server-confirmed, not optimistic.** A rating clears its gate on click so
+  a disk error can't strand a participant mid-conversation; a survey keeps the filled-in
+  card up until `survey_recorded` arrives. There are only three of these per arm and the
+  moderator is already at the screen, so a retry beats a silent drop. Failures come back as
+  `survey_error` (not `ErrorMessage`) specifically so they never render into the
+  participant's transcript.
+
+After task 3, the UI shows "Arch complete — ready for next phase" instead of returning to
+the input box. It's dismissable — a 4th task still logs honestly as task 4 rather than
+being blocked.
 
 ---
 
@@ -226,6 +261,11 @@ The backend prints `[jarvis] study condition=… participant=…` at startup —
 before the participant sits down. Unset values fall back to `unspecified` /
 `unassigned` rather than guessing, so an unlabeled session is obvious in the log.
 
+It also prints one line per post-task survey (`task survey recorded: participant=… arch=…
+task=…`). Since the task number is derived from survey_responses.csv, that line is the
+cheapest check that the label vars are right — a survey landing as task 1 when you expected
+task 3 means the participant or arch string doesn't match the earlier rows.
+
 **Label conventions — keep identical across both machines and both repos.** Condition is
 `arch1` or `arch2` (lowercase, matching architecture.txt). Participant is `P01`-style,
 capital P, zero-padded. The participant ID is the only join key between a participant's
@@ -255,5 +295,8 @@ reconciling by hand after data collection. Use the same string for
   or re-bind remember/forget in tools/__init__.py. Each one is a second personalization
   channel and reintroducing it makes an Arch 2 result unattributable to the cold-start
   profile. If a layer genuinely needs to come back, that's a study-design decision.
+- Do not hand-edit or delete rows from study_data/survey_responses.csv mid-study — the
+  next task number is counted from it, so removing a row makes the following survey
+  overwrite that task's slot. Fix it after data collection, not during.
 - Do not remove truststore.inject_into_ssl() — will break on this machine
 - Do not run full eval (22 queries x 3 ablations = 66 calls) without checking Tavily credit balance first

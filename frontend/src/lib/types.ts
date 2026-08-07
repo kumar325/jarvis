@@ -44,3 +44,23 @@ export type SystemStatus = "IDLE" | "ONLINE" | "ALIVE" | "BUSY" | "OFFLINE";
 export type InputMode = "text" | "voice";
 
 export type Rating = "up" | "down";
+
+/** 1-5 selectors on the post-task survey. Not a slider — discrete points only. */
+export type SurveyScale = 1 | 2 | 3 | 4 | 5;
+
+export type AccuracyAnswer = "yes" | "partially" | "no";
+
+/** One post-task evaluation. Carries no task number or participant id — the server
+ * derives both, so a refreshed browser can't restart the task count at 1. */
+export interface SurveyAnswers {
+  personalized_rating: SurveyScale;
+  accuracy_rating: AccuracyAnswer;
+  trust_rating: SurveyScale;
+}
+
+/** How far through the current arm the participant is, per the server's survey log. */
+export interface TaskState {
+  completedTasks: number;
+  nextTask: number;
+  archComplete: boolean;
+}

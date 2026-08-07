@@ -40,7 +40,7 @@ from agent_loop import ask_jarvis, clear_conversation
 from preferences import save_pref
 from style_tracker import record_utterance
 
-from . import audio, ratings, state
+from . import audio, ratings, state, surveys
 from .ws_messages import (
     AssistantTextMessage,
     DirectivesUpdateMessage,
@@ -49,6 +49,10 @@ from .ws_messages import (
     RatingMessage,
     SessionInfoMessage,
     SetTtsMessage,
+    SurveyErrorMessage,
+    SurveyRecordedMessage,
+    TaskStateMessage,
+    TaskSurveyMessage,
     ToolCallMessage,
     ToolResultMessage,
     TranscriptMessage,
@@ -203,10 +207,33 @@ async def ws_endpoint(websocket: WebSocket):
         await send_json_safe(DirectivesUpdateMessage(directives=state.get_directives()).model_dump())
         await send_json_safe(DocumentsUpdateMessage(documents=state.get_documents()).model_dump())
 
+    async def send_task_state():
+        """Tell the client how far through this arm the participant is.
+
+        Read from the survey log rather than held in connection state, so a mid-session
+        browser refresh (which starts a whole new connection) resumes at the right task
+        instead of showing "Task 1 of 3" again.
+        """
+        try:
+            completed = await run_in_threadpool(
+                surveys.count_completed_tasks, PARTICIPANT_ID, STUDY_CONDITION
+            )
+        except Exception as e:
+            log_operator(f"failed to read survey log for task state: {e}")
+            completed = 0
+        await send_json_safe(
+            TaskStateMessage(
+                completed_tasks=completed,
+                next_task=completed + 1,
+                arch_complete=completed >= surveys.TASKS_PER_ARCH,
+            ).model_dump()
+        )
+
     await send_json_safe(
         SessionInfoMessage(session_id=session_id, condition=STUDY_CONDITION).model_dump()
     )
     await send_json_safe(TtsStateMessage(enabled=tts_enabled).model_dump())
+    await send_task_state()
     await send_state_snapshot()
 
     def register_exchange(message_id: str, user_text: str, reply: str, input_mode: str):
@@ -363,6 +390,46 @@ async def ws_endpoint(websocket: WebSocket):
         except Exception as e:
             log_operator(f"failed to save preference pair: {e}")
 
+    async def handle_task_survey(incoming: TaskSurveyMessage):
+        """One post-task evaluation -> one row in survey_responses.csv.
+
+        Entirely separate from handle_rating above: that fires on every model response,
+        this fires once per task when the moderator marks it finished. They share no state
+        and land in different files.
+        """
+        try:
+            task_number = await run_in_threadpool(
+                surveys.record_survey,
+                session_id,
+                PARTICIPANT_ID,
+                STUDY_CONDITION,
+                incoming.personalized_rating,
+                incoming.accuracy_rating,
+                incoming.trust_rating,
+            )
+        except Exception as e:
+            # Unlike a rating, this is NOT acknowledged optimistically. A rating is one of
+            # many and the participant is mid-conversation behind a gate; a survey is one
+            # of three and the moderator is already looking at the screen, so it's better
+            # to keep the filled-in card up for a retry than to drop the response.
+            log_operator(f"failed to record task survey: {e}")
+            await send_json_safe(
+                SurveyErrorMessage(message=f"could not save the survey: {e}").model_dump()
+            )
+            return
+
+        log_operator(
+            f"task survey recorded: participant={PARTICIPANT_ID} arch={STUDY_CONDITION} "
+            f"task={task_number} -> {surveys.SURVEY_PATH.name}"
+        )
+        await send_json_safe(
+            SurveyRecordedMessage(
+                task_number=task_number,
+                next_task=task_number + 1,
+                arch_complete=task_number >= surveys.TASKS_PER_ARCH,
+            ).model_dump()
+        )
+
     async def send_busy_error():
         await send_json_safe(
             ErrorMessage(
@@ -429,6 +496,20 @@ async def ws_endpoint(websocket: WebSocket):
                 except ValidationError:
                     await send_json_safe(
                         ErrorMessage(message="malformed rating message").model_dump()
+                    )
+                continue
+
+            if kind == "task_survey":
+                try:
+                    await handle_task_survey(TaskSurveyMessage.model_validate(payload))
+                except ValidationError as e:
+                    # A survey_error rather than an ErrorMessage: this never belongs in the
+                    # participant's transcript, and the card needs to re-enable Submit.
+                    log_operator(f"malformed task survey message: {e}")
+                    await send_json_safe(
+                        SurveyErrorMessage(
+                            message="the survey answers didn't validate — try submitting again"
+                        ).model_dump()
                     )
                 continue
 

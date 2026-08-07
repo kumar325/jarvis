@@ -1,6 +1,6 @@
 """Typed schemas for the WebSocket message contract between the HUD frontend and this backend."""
 from typing import Any, Literal
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class UserTextMessage(BaseModel):
@@ -22,6 +22,54 @@ class RatingMessage(BaseModel):
     type: Literal["rating"] = "rating"
     message_id: str
     rating: Literal["up", "down"]
+
+
+class TaskSurveyMessage(BaseModel):
+    """Client -> server: the post-task evaluation, sent once when the moderator has marked
+    a task finished and the participant has answered all three questions.
+
+    Deliberately carries no task number — the server derives it from the survey log so a
+    browser refresh can't restart the count (see surveys.record_survey). The 1-5 bounds are
+    enforced here rather than trusted from the UI: an out-of-range value would be a silently
+    unusable row in the analysis CSV.
+    """
+    type: Literal["task_survey"] = "task_survey"
+    personalized_rating: int = Field(ge=1, le=5)
+    accuracy_rating: Literal["yes", "partially", "no"]
+    trust_rating: int = Field(ge=1, le=5)
+
+
+class TaskStateMessage(BaseModel):
+    """Server -> client: how far through this arm the participant is, sent on connect.
+
+    Lets a refreshed browser pick the task counter back up from the log instead of showing
+    "Task 1 of 3" again after two tasks are already done.
+    """
+    type: Literal["task_state"] = "task_state"
+    completed_tasks: int
+    next_task: int
+    arch_complete: bool
+
+
+class SurveyRecordedMessage(BaseModel):
+    """Server -> client: a survey response reached disk. This is the frontend's cue to
+    clear the survey card — sent only after the append succeeds, so a failed write leaves
+    the card up with the answers still in it rather than silently discarding them."""
+    type: Literal["survey_recorded"] = "survey_recorded"
+    task_number: int
+    next_task: int
+    arch_complete: bool
+
+
+class SurveyErrorMessage(BaseModel):
+    """Server -> client: the survey could not be written.
+
+    A distinct type from ErrorMessage because the frontend renders those into the
+    participant's conversation log; a disk problem is an operator concern and belongs on
+    the survey card (which only the moderator is looking at), not in the transcript.
+    """
+    type: Literal["survey_error"] = "survey_error"
+    message: str
 
 
 class SessionInfoMessage(BaseModel):

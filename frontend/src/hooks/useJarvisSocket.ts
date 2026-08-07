@@ -4,6 +4,8 @@ import type {
   DocumentEntry,
   Rating,
   StatCardData,
+  SurveyAnswers,
+  TaskState,
   ToolCallCard,
   WireEvent,
 } from "../lib/types";
@@ -33,6 +35,9 @@ type ServerMessage =
   | { type: "tool_call"; id: string; tool_name: string; args: Record<string, unknown> }
   | { type: "tool_result"; id: string; tool_name: string; preview: string }
   | { type: "tts_state"; enabled: boolean }
+  | { type: "task_state"; completed_tasks: number; next_task: number; arch_complete: boolean }
+  | { type: "survey_recorded"; task_number: number; next_task: number; arch_complete: boolean }
+  | { type: "survey_error"; message: string }
   | { type: "error"; message: string };
 
 function timestamp() {
@@ -48,6 +53,24 @@ export function useJarvisSocket(ttsEnabled: boolean, onTtsStateChange: (enabled:
   const [wireEvents, setWireEvents] = useState<WireEvent[]>([]);
   const [agentBusy, setAgentBusy] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [condition, setCondition] = useState<string | null>(null);
+  // Task progress through the current arm. Server-owned and re-sent on every connect, so a
+  // refreshed browser resumes at the right task rather than restarting the count.
+  const [taskState, setTaskState] = useState<TaskState>({
+    completedTasks: 0,
+    nextTask: 1,
+    archComplete: false,
+  });
+  const [surveySubmitting, setSurveySubmitting] = useState(false);
+  const [surveyError, setSurveyError] = useState<string | null>(null);
+  // Set when the server confirms a survey reached disk; App consumes it to close the card
+  // and clears it via acknowledgeSurveyRecorded(). Unlike a rating, the card is NOT cleared
+  // optimistically — these three answers are the task-level measure and a dropped write
+  // can't be recovered from anywhere else.
+  const [surveyRecorded, setSurveyRecorded] = useState<{
+    taskNumber: number;
+    archComplete: boolean;
+  } | null>(null);
   // The id of the response currently awaiting a thumbs up/down. Non-null means input is
   // gated: the participant must rate before sending anything else.
   const [pendingRatingId, setPendingRatingId] = useState<string | null>(null);
@@ -125,6 +148,10 @@ export function useJarvisSocket(ttsEnabled: boolean, onTtsStateChange: (enabled:
         // A reconnect starts a fresh server-side session, so the old pending response no
         // longer exists to be rated — holding the gate would lock the participant out.
         updatePendingRating(null);
+        // No survey_recorded/survey_error is coming over a closed socket. Unlike the
+        // rating gate this does NOT clear the card — the answers are still on screen and
+        // Submit re-enables, so the moderator can resend once the socket is back.
+        setSurveySubmitting(false);
         if (!cancelled) {
           reconnectTimer = setTimeout(connect, RECONNECT_DELAY_MS);
         }
@@ -183,6 +210,31 @@ export function useJarvisSocket(ttsEnabled: boolean, onTtsStateChange: (enabled:
             break;
           case "session_info":
             setSessionId(msg.session_id);
+            setCondition(msg.condition);
+            break;
+          case "task_state":
+            setTaskState({
+              completedTasks: msg.completed_tasks,
+              nextTask: msg.next_task,
+              archComplete: msg.arch_complete,
+            });
+            break;
+          case "survey_recorded":
+            setSurveySubmitting(false);
+            setSurveyError(null);
+            setTaskState({
+              completedTasks: msg.task_number,
+              nextTask: msg.next_task,
+              archComplete: msg.arch_complete,
+            });
+            setSurveyRecorded({ taskNumber: msg.task_number, archComplete: msg.arch_complete });
+            break;
+          case "survey_error":
+            // Deliberately not pushed to the wire log — a disk problem is the operator's,
+            // and the participant's transcript must not carry it. Re-enables Submit so the
+            // moderator can retry with the answers still filled in.
+            setSurveySubmitting(false);
+            setSurveyError(msg.message);
             break;
           case "assistant_text":
             setBusy(false, "assistant_text");
@@ -281,6 +333,28 @@ export function useJarvisSocket(ttsEnabled: boolean, onTtsStateChange: (enabled:
     [updatePendingRating]
   );
 
+  const sendSurvey = useCallback((answers: SurveyAnswers) => {
+    const ws = wsRef.current;
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      setSurveyError("not connected — reconnecting, then submit again");
+      return;
+    }
+    setSurveyError(null);
+    setSurveySubmitting(true);
+    try {
+      // No task number or participant id in the payload: the server assigns both from the
+      // survey log, so a refreshed browser can't restart the count at 1 and overwrite an
+      // earlier task's row.
+      ws.send(JSON.stringify({ type: "task_survey", ...answers }));
+    } catch (err) {
+      console.error("failed to send survey", err);
+      setSurveySubmitting(false);
+      setSurveyError("could not send the survey — try again");
+    }
+  }, []);
+
+  const acknowledgeSurveyRecorded = useCallback(() => setSurveyRecorded(null), []);
+
   const sendTtsState = useCallback((enabled: boolean) => {
     const ws = wsRef.current;
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
@@ -296,6 +370,13 @@ export function useJarvisSocket(ttsEnabled: boolean, onTtsStateChange: (enabled:
   return {
     connected,
     sessionId,
+    condition,
+    taskState,
+    surveySubmitting,
+    surveyError,
+    surveyRecorded,
+    sendSurvey,
+    acknowledgeSurveyRecorded,
     vitals,
     directives,
     documents,
