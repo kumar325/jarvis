@@ -189,26 +189,31 @@ def console_safe(text: str) -> str:
     return text.encode(encoding, errors="replace").decode(encoding, errors="replace")
 
 
-def seed_profile(url: str) -> bool:
-    """Fetch the incoming participant's public URL and store the cold-start summary.
+def seed_profile(url: str | None, text_file: Path | None) -> bool:
+    """Store the incoming participant's cold-start profile, from a URL or written text.
 
     Must run AFTER wipe() — wipe writes {} over user_profile.json, so seeding first would
     erase itself. Returns False on any failure, and the caller must treat that as fatal:
     at that point state is already wiped, so continuing leaves an empty profile, which is
     the exact condition that makes an arch2 session behave like arch1.
     """
-    print(f"\nSeeding cold-start profile from {url}")
+    source_desc = url if url else f"{text_file} (self-written)"
+    print(f"\nSeeding cold-start profile from {source_desc}")
     try:
         # Local import on purpose — see the module docstring. This is the only path here
         # that needs the venv.
-        from user_profile import get_profile_summary, learn_from_url
+        from user_profile import get_profile_summary, learn_from_text, learn_from_url
     except Exception as e:
         print(f"  FAILED to import user_profile: {e}")
         print(r"  Is the venv active? .venv\Scripts\Activate.ps1")
         return False
 
     try:
-        result = learn_from_url(url)
+        if url:
+            result = learn_from_url(url)
+        else:
+            written = text_file.read_text(encoding="utf-8")
+            result = learn_from_text(written, label=f"self-reported ({text_file.name})")
     except Exception as e:
         print(f"  FAILED: {e}")
         return False
@@ -238,8 +243,16 @@ def main():
         "--profile-url",
         action="append",
         metavar="URL",
-        help="arch2 only: after wiping, seed the cold-start profile from this public URL "
-             "(needs the venv active). Omit for arch1, which has no personalization layer.",
+        help="seed the cold-start profile from this public URL after wiping (needs the "
+             "venv active). Seed once per participant — arch1 simply never reads it.",
+    )
+    parser.add_argument(
+        "--profile-text-file",
+        metavar="PATH",
+        help="fallback when the participant has no public URL: seed the profile from a "
+             "text file they wrote about themselves. Same summarizer as --profile-url, so "
+             "the stored profile has the same shape. A file rather than an inline string "
+             "because a pasted multi-line bio does not survive shell quoting.",
     )
     parser.add_argument("--keep-sandbox", action="store_true", help="leave jarvis_sandbox/ contents in place")
     parser.add_argument("--no-backup", action="store_true", help="don't archive current state before wiping")
@@ -258,6 +271,16 @@ def main():
             "several sources into one summary yet (it would keep only the last)."
         )
     profile_url = args.profile_url[0] if args.profile_url else None
+
+    # Same overwrite problem as two URLs — whichever ran second would win silently.
+    if profile_url and args.profile_text_file:
+        parser.error("pass either --profile-url or --profile-text-file, not both.")
+
+    profile_text_file = Path(args.profile_text_file) if args.profile_text_file else None
+    # Checked before the wipe: failing afterwards would leave state cleared with no
+    # profile, which is the one outcome this flag exists to prevent.
+    if profile_text_file and not profile_text_file.is_file():
+        parser.error(f"--profile-text-file: no such file: {profile_text_file}")
 
     include_sandbox = not args.keep_sandbox
 
@@ -290,7 +313,7 @@ def main():
 
     # Strictly after the wipe (which blanks user_profile.json) and after the backup above
     # (which archived the outgoing participant's profile).
-    if profile_url and not seed_profile(profile_url):
+    if (profile_url or profile_text_file) and not seed_profile(profile_url, profile_text_file):
         print(
             "\n!! STATE IS WIPED AND NO PROFILE WAS STORED.\n"
             "   Arch 2's only personalization layer is empty, so a session started now\n"
@@ -316,16 +339,17 @@ def main():
         print("\nBackend is not running - start it fresh and the conversation history starts empty.")
 
     trailing = "no preference examples." if args.keep_sandbox else "no preference examples, no files."
-    if profile_url:
+    if profile_url or profile_text_file:
         print(f"\nArch 2 ready - cold-start profile seeded, no facts, no style, {trailing}")
     else:
         print(f"\nBlank slate - no profile, no facts, no style, {trailing}")
         # Correct for arch1, fatal for arch2, and the two are told apart only by an env
         # var set in another terminal — so say it here rather than assume the right one.
         print(
-            "\n  No --profile-url given. That is correct for arch1 and WRONG for arch2:\n"
-            "  the cold-start profile is arch2's only personalization layer. The backend\n"
-            "  refuses to start with JARVIS_STUDY_CONDITION=arch2 and an empty profile."
+            "\n  No profile seeded (--profile-url / --profile-text-file). The backend\n"
+            "  refuses to start with JARVIS_STUDY_CONDITION=arch2 and an empty profile,\n"
+            "  since the cold-start profile is arch2's only personalization layer.\n"
+            "  Seed once per participant - arch1 runs fine either way, it never reads it."
         )
     return 0
 
