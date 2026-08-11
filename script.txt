@@ -1,0 +1,204 @@
+================================================================================
+JARVIS STUDY — SETUP RUNBOOK (read aloud)
+Reset a participant, seed their profile, and run both arms.
+================================================================================
+
+Everything below is per-participant unless it says per-arm. Two things get set
+once per participant (the reset and the profile seed) and two things get set
+once per ARM (the condition label and a backend restart).
+
+
+--------------------------------------------------------------------------------
+STEP 0 — WRITE THE PARTICIPANT PARAGRAPH
+--------------------------------------------------------------------------------
+
+The paragraph describing the participant goes in a plain text file. That is the
+only place it can be entered — there is no form and no inline flag for it.
+
+Create:
+
+    study_data\P01_bio.txt
+
+Use the participant's real ID in the filename. study_data\ is the convention:
+it is gitignored, and the reset script never wipes it — it only archives into it.
+
+Rules for the paragraph:
+
+  - One paragraph of plain prose. No bullet points, no markdown, no headings.
+  - First person if the participant writes it themselves — "I'm an engineering
+    manager at..." The summarizer rewrites to third person either way, but
+    first person avoids a bio written ABOUT someone turning into the assistant
+    thinking that author is its user.
+  - It must be about the participant and nobody else. A page or paragraph about
+    a second person risks the two being merged into one profile.
+
+Format reference: study_data\PILOT_bio.txt.
+
+Why a file and not a command-line string: a multi-line paragraph does not
+survive shell quoting.
+
+
+--------------------------------------------------------------------------------
+STEP 1 — RESET AND SEED  (ONCE per participant, NOT once per arm)
+--------------------------------------------------------------------------------
+
+Activate the virtual environment first. This step is the one place that imports
+Jarvis modules and calls Groq, so it needs the venv, the network, and a key.
+
+    .venv\Scripts\Activate.ps1
+
+Then run ONE of the following.
+
+Text paragraph only:
+
+    python reset_user_state.py --participant P01 --profile-text-file study_data\P01_bio.txt -y
+
+Public URL only:
+
+    python reset_user_state.py --participant P01 --profile-url https://www.linkedin.com/in/... -y
+
+Both together — the flags are repeatable and combinable, and every source is
+summarized into one profile in a single call:
+
+    python reset_user_state.py --participant P01 --profile-url https://... --profile-text-file study_data\P01_bio.txt -y
+
+What that command does, in order: archives the previous participant's state into
+study_data\, wipes the three personalization JSON files, then seeds the new
+cold-start profile.
+
+IF IT EXITS WITH CODE 2 AND A LOUD BANNER: state is already wiped and no profile
+was stored. Do not start an arch2 session. Fix the source and re-run.
+
+Seed even when arch1 runs first. The profile is per-participant, and arch1
+simply never reads it.
+
+
+--------------------------------------------------------------------------------
+STEP 2 — VERIFY BEFORE THE PARTICIPANT SITS DOWN
+--------------------------------------------------------------------------------
+
+    python reset_user_state.py --status
+
+    python inspect_prompt.py
+
+In the inspect_prompt output, confirm the profile summary is there and that it
+is plain prose. If it comes back as a bullet list, that is a problem: it gets
+injected verbatim and only under arch2, so it would pull one arm toward bulleted
+answers in an interface that reads its replies out loud.
+
+
+--------------------------------------------------------------------------------
+STEP 3 — START THE BACKEND  (ONCE per ARM)
+--------------------------------------------------------------------------------
+
+Label the session BEFORE starting the server. Both variables are read once at
+import, so setting them afterwards does nothing.
+
+    $env:JARVIS_STUDY_CONDITION = "arch1"
+    $env:JARVIS_PARTICIPANT_ID  = "P01"
+    .venv\Scripts\python.exe -m uvicorn backend.server:app --port 8000
+
+Label conventions — get these exactly right:
+
+    condition   arch1 or arch2, lowercase
+    participant P01, P02, ... capital P, zero-padded
+
+The participant ID is the only key joining a participant's two arms together.
+A variant spelling means reconciling the data by hand afterwards.
+
+Read the startup line out loud and check it:
+
+    [jarvis] study condition=arch1 participant=P01 arm=1 of 2
+
+Under arch1 you should also see:
+
+    arch1 baseline - profile injection OFF (N chars on disk, deliberately not injected)
+
+Under arch2 the server REFUSES TO START if the profile is empty. That guard
+exists because an arch2 session with an empty profile is silently just the
+baseline, and nothing downstream can detect it afterwards.
+
+
+--------------------------------------------------------------------------------
+STEP 4 — START THE FRONTEND  (separate terminal)
+--------------------------------------------------------------------------------
+
+    cd frontend
+    npm run dev
+
+Open the URL it prints. Run the three tasks. Click Finish Task in the header
+after each one and have the participant complete the three-question survey.
+
+
+--------------------------------------------------------------------------------
+STEP 5 — SWITCH ARMS  (same participant)
+--------------------------------------------------------------------------------
+
+NO reset. NO re-seed. NO re-scrape. The second arm runs against the same
+on-disk state as the first.
+
+Stop the backend, then:
+
+    $env:JARVIS_STUDY_CONDITION = "arch2"
+    .venv\Scripts\python.exe -m uvicorn backend.server:app --port 8000
+
+Reload the browser tab — that clears the conversation.
+
+Confirm the startup line now reads arm=2 of 2.
+
+Alternate the arm order between participants and keep track at the desk:
+
+    P01: arch1 then arch2
+    P02: arch2 then arch1
+    P03: arch1 then arch2   ...and so on
+
+The code records the order, it does not choose it.
+
+
+--------------------------------------------------------------------------------
+DRY RUN / WIRING TEST
+--------------------------------------------------------------------------------
+
+To poke at the interface without a real participant profile:
+
+    $env:JARVIS_ALLOW_EMPTY_PROFILE = "1"
+
+Use a throwaway participant ID like PILOT3. Do NOT test under a real ID: survey
+task numbers are counted from study_data\survey_responses.csv per participant
+and per arm, so leftover test rows under P01 would make that participant's first
+real survey log as task 2.
+
+Open a new terminal for the real session so the override variable is gone.
+
+
+--------------------------------------------------------------------------------
+QUICK CHECKS DURING A SESSION
+--------------------------------------------------------------------------------
+
+The backend prints one line per submitted survey:
+
+    task survey recorded: participant=P01 arch=arch1 task=1
+
+That is the cheapest check that the labels are right. A survey landing as task 1
+when you expected task 3 means the participant string or the arch string does
+not match the earlier rows.
+
+Read a finished session back with:
+
+    python summarize_session.py
+
+Do NOT hand-edit or delete rows from study_data\survey_responses.csv during the
+study. The next task number is counted from that file, so removing a row makes
+the following survey overwrite that task's slot. Fix it after data collection.
+
+
+--------------------------------------------------------------------------------
+ONE-PAGE SUMMARY
+--------------------------------------------------------------------------------
+
+  1. Write study_data\P01_bio.txt          — one plain paragraph, first person
+  2. Reset + seed                          — once per participant
+  3. inspect_prompt.py                     — confirm prose, not bullets
+  4. Set condition + participant, start backend  — once per arm
+  5. npm run dev, run three tasks, survey after each
+  6. Switch condition, restart backend, reload tab — no reset in between
