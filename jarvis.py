@@ -18,6 +18,7 @@ except Exception:
 from voice import record, transcribe, speak
 from agent_loop import ask_jarvis
 from preferences import save_pref
+from speech_summary import summarize_for_speech
 from style_tracker import record_utterance
 
 while True:
@@ -36,7 +37,13 @@ while True:
     record_utterance(user_text)
     reply = ask_jarvis(user_text)
     print(f"Jarvis: {reply}", flush=True)
-    speak(reply)
+    # Printed in full, spoken as a summary when it's long — same rule the web path uses,
+    # called from both so the two can't drift. The rating below is on `reply`, the answer
+    # that was printed, not on the shortened audio.
+    spoken = summarize_for_speech(reply)
+    if spoken != reply:
+        print(f"[speaking a {len(spoken)}-char summary]", flush=True)
+    speak(spoken)
 
     rating_input = input("Feedback (u=👍 / d=👎 / Enter to skip): ").strip().lower()
     if rating_input in ("u", "up", "1", "+"):

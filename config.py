@@ -62,6 +62,35 @@ SPEECH_RATE = 170
 RECORD_SECONDS = 10
 SAMPLE_RATE = 16000
 
+# Spoken summary
+#
+# A long reply is displayed in full but SPOKEN as a summary (speech_summary.py). At
+# SPEECH_RATE, 800 characters is already about a minute of audio the listener cannot skim
+# or skip — past that, hearing the shape of the answer beats hearing all of it.
+#
+# The threshold is not much larger than a summary itself on purpose: replies just over it
+# shorten only a little, which is harmless, while setting it high would leave exactly the
+# three-minute answers this exists for unshortened. Same value for both arms — a
+# per-arm threshold would make speech length a second difference between them.
+SPOKEN_SUMMARY_MAX_CHARS = 800
+SPOKEN_SUMMARY_SENTENCES = 5
+
+# A sentence count alone doesn't bound anything — asked for five sentences, the model
+# writes five 60-word ones and shortens a long answer by barely a fifth. The word budget
+# is what actually makes it a summary. 100 words is roughly 35 seconds at SPEECH_RATE.
+SPOKEN_SUMMARY_MAX_WORDS = 100
+
+# Shorter than LLM_TIMEOUT_S because this call sits between the participant reading the
+# answer and hearing it, with nothing happening in between. On timeout the full reply is
+# spoken instead, so a low ceiling costs verbosity, never the turn.
+#
+# Not lower than this, though. speech_summary uses its own ChatGroq client, so its first
+# call of a session pays for a fresh TLS handshake that the answer path has already made;
+# at 10s that first summary timed out and the participant heard three and a half minutes
+# of audio — the exact outcome this exists to avoid. Prefer waiting a few seconds over
+# falling back.
+SPOKEN_SUMMARY_TIMEOUT_S = 15
+
 # Whisper decoding
 #
 # Pinning the language skips per-clip auto-detection, which is unreliable on the short,

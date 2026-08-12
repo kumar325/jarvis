@@ -40,6 +40,7 @@ sounddevice (and every other dependency). Activate, or call
 jarvis.py           — thin main loop, Enter-to-talk or t-for-text input
 config.py           — constants and env loading
 voice.py            — Whisper STT + pyttsx3 TTS
+speech_summary.py   — shortens a long reply for the SPEAKER only (see below)
 agent_loop.py       — LangChain agent, MAX_TOOL_TURNS=3, graceful fallback
 system_prompt.py    — builds system prompt (base + URL profile only; see layers below)
 preferences.py      — in-context RLHF: stores preference pairs, cosine-similarity retrieval
@@ -256,6 +257,43 @@ delta, and expect the query set itself to need revisiting.
 
 ---
 
+## Spoken summary (speech_summary.py)
+
+A reply over `SPOKEN_SUMMARY_MAX_CHARS` (800) is **spoken** as a ~5-sentence, ~100-word
+summary; shorter ones are spoken verbatim with no LLM call at all. Measured end to end: a
+4323-char answer became 593 spoken chars, and the wav went from 9.5 MB (~3.5 min) to 1.8 MB
+(~40 s).
+
+**Only the audio changes.** The full reply is what the UI renders, what
+`register_exchange()` stores, and what a thumbs up/down is logged against — the participant
+rates the answer they can read. `eval/run_eval.py` scores `ask_jarvis()` output and never
+reaches this module.
+
+Four things worth not undoing:
+
+- **It sees the reply and nothing else.** A bare `llm_raw` call — no profile, no style, no
+  preference examples, no conversation history. A summarizer that could read the profile
+  would be a second personalization channel, and every argument in the layers section above
+  applies to it. It is also arm-blind: same threshold, same prompt, same code under arch1
+  and arch2, and the condition is never passed in.
+- **The word budget, not the sentence count, is the real constraint.** Asked for five
+  sentences alone, the model wrote five 60-word ones and shortened a long answer by 22%.
+  With `SPOKEN_SUMMARY_MAX_WORDS` it shortens by half or more.
+- **Every failure falls back to speaking the full reply**, which is just the old behavior —
+  timeout, API error, empty output, or a "summary" no shorter than its input. It never
+  raises, so it cannot cost a turn. Each fallback prints a `[speech_summary]` line, because
+  a fallback is invisible to the participant and a summarizer failing all session would
+  otherwise look exactly like one that never triggers.
+- **`SPOKEN_SUMMARY_TIMEOUT_S` is 15, not lower.** The module has its own ChatGroq client,
+  so its first call of a session pays a TLS handshake the answer path already made. At 10s
+  that first summary timed out in testing and the participant got the full 3.5 minutes.
+
+The mute/unmute confirmations ("Voice output off — ...") are deliberately not routed
+through it: they are fixed short strings, intercepted before `ask_jarvis()`, and spending
+an LLM call on one would be silly.
+
+---
+
 ## Running the project
 ```powershell
 # Activate venv
@@ -457,5 +495,9 @@ Use the same string for `reset_user_state.py --participant P03`.
 - Do not hand-edit or delete rows from study_data/survey_responses.csv mid-study — the
   next task number is counted from it, so removing a row makes the following survey
   overwrite that task's slot. Fix it after data collection, not during.
+- Do not give speech_summary.py access to the profile, style, preferences, or the
+  conversation — it is a bare llm_raw call on the reply text and must stay one. Same reason
+  as above: it would be a second personalization channel, and one that differs between arms
+  only in what it was fed. Do not make its threshold or prompt depend on the condition.
 - Do not remove truststore.inject_into_ssl() — will break on this machine
 - Do not run full eval (22 queries x 3 ablations = 66 calls) without checking Tavily credit balance first

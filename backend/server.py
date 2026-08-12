@@ -39,6 +39,7 @@ from config import PARTICIPANT_ID, STUDY_CONDITION, profile_injection_enabled
 # backend startup, before a participant sits down. It adds nothing new anyway — backend
 # .state already imports preferences transitively, so the embedder is loaded either way.
 from preferences import save_pref
+from speech_summary import summarize_for_speech
 from style_tracker import record_utterance
 # Read at startup only, to verify the arch2 personalization layer is actually populated —
 # this is the same function system_prompt.py injects from, so the check can't drift from
@@ -407,7 +408,20 @@ async def ws_endpoint(websocket: WebSocket):
 
             if tts_enabled:
                 try:
-                    audio_reply = await run_in_threadpool(audio.synthesize, reply)
+                    # Summarized only for the speaker. The full `reply` above is what the
+                    # participant reads, what register_exchange() stored, and what a rating
+                    # will be logged against — the audio is the only thing shortened.
+                    #
+                    # Strictly after the AssistantTextMessage: this adds an LLM call before
+                    # any sound comes out, and the answer should already be on screen while
+                    # it runs. summarize_for_speech() never raises, so a failure here is a
+                    # long spoken reply, not a lost turn.
+                    spoken = await run_in_threadpool(summarize_for_speech, reply)
+                    if spoken != reply:
+                        log_operator(
+                            f"spoke a summary ({len(reply)} chars -> {len(spoken)})"
+                        )
+                    audio_reply = await run_in_threadpool(audio.synthesize, spoken)
                     await send_bytes_safe(audio_reply)
                 except Exception as e:
                     await send_json_safe(
