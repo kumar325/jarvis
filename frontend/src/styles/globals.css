@@ -7,10 +7,6 @@
   --accent: #d4a244;
   --accent-glow: color-mix(in srgb, var(--accent) 45%, transparent);
   --accent-dim: color-mix(in srgb, var(--accent) 30%, transparent);
-  /* The orb turns this colour while Jarvis is speaking, so who holds the floor is legible
-     from across the room. Warm rather than a signal red — it sits beside the gold without
-     reading as an error state to a participant. */
-  --accent-speaking: #d2503f;
 
   --bg: #0c0e11;
   --surface: #16191e;

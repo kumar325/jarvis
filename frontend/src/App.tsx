@@ -140,7 +140,7 @@ function App() {
           </>
         }
         clock={<Clock />}
-        orb={<OrbVisualization active={agentBusy} amplitude={amplitude} speaking={isPlaying} />}
+        orb={<OrbVisualization active={agentBusy} amplitude={amplitude} />}
         conversation={<Conversation events={wireEvents} thinking={agentBusy} />}
         rating={awaitingRating ? <RatingPrompt onRate={sendRating} /> : null}
         overlay={
