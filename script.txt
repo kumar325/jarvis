@@ -12,8 +12,14 @@ once per ARM (the condition label and a backend restart).
 STEP 0 — WRITE THE PARTICIPANT PARAGRAPH
 --------------------------------------------------------------------------------
 
-The paragraph describing the participant goes in a plain text file. That is the
-only place it can be entered — there is no form and no inline flag for it.
+There are three ways to describe the participant, and they can be combined:
+
+    --profile-url        a public web page
+    --profile-text-file  a paragraph they wrote (this step)
+    --profile-pdf        an exported profile document (see STEP 0B)
+
+The paragraph described here goes in a plain text file. That is the only place it
+can be entered — there is no form and no inline flag for it.
 
 Create:
 
@@ -37,6 +43,38 @@ Format reference: study_data\PILOT_bio.txt.
 Why a file and not a command-line string: a multi-line paragraph does not
 survive shell quoting.
 
+--------------------------------------------------------------------------------
+STEP 0B — OR USE A PDF
+--------------------------------------------------------------------------------
+
+If the participant has a LinkedIn profile, the simplest source is usually the
+PDF, not the URL. A logged-out scrape of a LinkedIn URL hits a login wall and
+returns almost no text; the participant can export the page instead.
+
+Ask them to open their profile, click "More", then "Save to PDF".
+
+Drop the file in either of these — both are searched by bare filename:
+
+    jarvis_sandbox\
+    study_data\
+
+Then pass just the filename, no path:
+
+    --profile-pdf "Kaylea Champion, PhD _ LinkedIn.pdf"
+
+The export is a picture of the whole logged-in page, so it also contains
+suggested connections, "People you may know", promoted company pages and the
+footer — other people, with job titles, sitting inside the participant's own
+file. Those sections are stripped before summarizing, and the summarizer is
+separately told the text is about exactly one person.
+
+That stripping is matched by section name, so a LinkedIn redesign could get past
+it. This is why STEP 2 says to read the stored summary: if another person's job
+appears in it, re-run with a different source.
+
+A scanned or photographed PDF has no extractable text. It will fail loudly
+rather than store an empty profile.
+
 
 --------------------------------------------------------------------------------
 STEP 1 — RESET AND SEED  (ONCE per participant, NOT once per arm)
@@ -57,7 +95,11 @@ Public URL only:
 
     python reset_user_state.py --participant P01 --profile-url https://www.linkedin.com/in/... -y
 
-Both together — the flags are repeatable and combinable, and every source is
+PDF export only — bare filename, found in jarvis_sandbox\ or study_data\:
+
+    python reset_user_state.py --participant P01 --profile-pdf "P01 _ LinkedIn.pdf" -y
+
+Any combination — the flags are repeatable and combinable, and every source is
 summarized into one profile in a single call:
 
     python reset_user_state.py --participant P01 --profile-url https://... --profile-text-file study_data\P01_bio.txt -y
@@ -81,10 +123,15 @@ STEP 2 — VERIFY BEFORE THE PARTICIPANT SITS DOWN
 
     python inspect_prompt.py
 
-In the inspect_prompt output, confirm the profile summary is there and that it
-is plain prose. If it comes back as a bullet list, that is a problem: it gets
-injected verbatim and only under arch2, so it would pull one arm toward bulleted
-answers in an interface that reads its replies out loud.
+In the inspect_prompt output, confirm three things:
+
+  1. The profile summary is there.
+  2. It is plain prose. If it comes back as a bullet list, that is a problem: it
+     gets injected verbatim and only under arch2, so it would pull one arm toward
+     bulleted answers in an interface that reads its replies out loud.
+  3. It describes ONE person — the participant. This matters most when the source
+     was a PDF export, since those carry other people's names and job titles.
+     If a stranger's role has been merged in, re-seed from a different source.
 
 
 --------------------------------------------------------------------------------
@@ -197,6 +244,7 @@ ONE-PAGE SUMMARY
 --------------------------------------------------------------------------------
 
   1. Write study_data\P01_bio.txt          — one plain paragraph, first person
+     (or drop a LinkedIn "Save to PDF" export in study_data\ and use --profile-pdf)
   2. Reset + seed                          — once per participant
   3. inspect_prompt.py                     — confirm prose, not bullets
   4. Set condition + participant, start backend  — once per arm

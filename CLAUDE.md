@@ -28,6 +28,8 @@ sounddevice (and every other dependency). Activate, or call
 - **Web search:** Tavily (advanced depth, max_results=5, content slice 1500 chars)
 - **Embeddings:** sentence-transformers all-MiniLM-L6-v2
 - **URL scraping:** requests + BeautifulSoup
+- **PDF extraction:** pypdf (profile seeding only — `--profile-pdf`). There is no
+  requirements.txt in this repo; install it into the venv directly if a fresh clone needs it.
 - **Eval:** UpTrain with groq/llama-3.3-70b-versatile as judge LLM
 - **SSL fix:** truststore.inject_into_ssl() at startup (corporate cert issue on this machine)
 
@@ -274,6 +276,7 @@ python eval/run_eval.py --ablations no_web_search,full --limit 3
 # 1. ONCE per participant — reset state and seed the cold-start profile. Seed it even
 #    when arch1 runs first: it's per-participant, and arch1 simply never reads it.
 python reset_user_state.py --participant P03 --profile-url https://... -y
+#    or --profile-text-file bio.txt, or --profile-pdf linkedin.pdf (all combinable)
 
 # 2. Backend — label the session BEFORE starting it. Both vars are read once at import,
 #    so restart the backend between arms AND between participants.
@@ -342,8 +345,8 @@ arm would also read as position 1.
 `seed_profile()` so every other path — including `--status` — stays stdlib-only. Don't
 hoist it.
 
-**Sources.** `--profile-url` and `--profile-text-file` are both repeatable and can be
-combined. `learn_from_sources()` fetches everything and summarizes it in **one** call —
+**Sources.** `--profile-url`, `--profile-text-file` and `--profile-pdf` are all repeatable
+and can be combined. `learn_from_sources()` fetches everything and summarizes it in **one** call —
 never one call per source, because the profile has a single `summary` field and per-source
 calls would leave only the last one standing. The character budget is split evenly across
 sources so a long page can't crowd out a short bio.
@@ -351,9 +354,30 @@ sources so a long page can't crowd out a short bio.
 `--profile-text-file` is the fallback for a participant with no public URL (the screener
 normally excludes them, but it's needed for piloting). It runs the *same* summarizer, so
 the stored profile has the same shape — this is the one layer Arch 2 has and it shouldn't
-vary in form by participant. `source_type` records `url`, `text`, or `text+url`; those are
-not equivalent inputs (written text is what someone chooses to disclose, a public page is
-what's already visible) and a result that hinges on the difference should be visible.
+vary in form by participant. `source_type` records `url`, `text`, `pdf`, or a `+`-joined
+mix; those are not equivalent inputs (written text is what someone chooses to disclose, a
+public page or an exported profile is what's already visible) and a result that hinges on
+the difference should be visible.
+
+`--profile-pdf` takes a bare filename and looks in `jarvis_sandbox/` then `study_data/`,
+or an explicit path. It exists because a LinkedIn profile is usually only reachable behind
+a login — scraping the URL returns a wall, while the participant can hand over a "Save to
+PDF" export. Two things it handles that are easy to get wrong:
+
+- **The export is a page, not a document.** It carries suggested connections, who-else-viewed,
+  promoted company pages and a footer — i.e. *other people*, with job titles, inside the
+  participant's own file. `_strip_export_chrome()` truncates at those section markers, and
+  `PROFILE_SYSTEM_PROMPT` separately tells the summarizer the text is about exactly one
+  person. Both, because the markers are matched by string and LinkedIn changes its layout;
+  the stripper fails open, so the prompt is the real backstop. On the sample export this
+  takes 5275 chars to 2982 and drops all six other named individuals.
+- **A sandbox PDF would be deleted before it's read.** Seeding runs after the wipe (it has
+  to — the wipe blanks user_profile.json), and the wipe empties `jarvis_sandbox/`. Any
+  `--profile-pdf` resolving inside the sandbox is copied to `study_data/` first and seeded
+  from the copy.
+
+A scanned or image-only PDF extracts to nothing and lands in the normal `failed` list, so
+it hits the exit-2 banner rather than storing an empty summary.
 
 Two things the summarizer prompt defends against, both found the hard way:
 

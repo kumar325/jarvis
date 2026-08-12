@@ -33,21 +33,22 @@ Usage:
     python reset_user_state.py --keep-sandbox -y        # leave jarvis_sandbox/ alone
     python reset_user_state.py --no-backup -y           # wipe without archiving
 
-    # wipe, then seed the incoming participant's cold-start profile. Both flags are
+    # wipe, then seed the incoming participant's cold-start profile. All three flags are
     # repeatable and combinable; every source is summarized together into one profile.
     python reset_user_state.py --participant P03 --profile-url https://... -y
     python reset_user_state.py --participant P03 --profile-text-file bio.txt -y
+    python reset_user_state.py --participant P03 --profile-pdf linkedin.pdf -y
     python reset_user_state.py --participant P03 --profile-url https://... \
                                --profile-text-file bio.txt -y
 
 Stdlib only and no imports from the Jarvis modules, so it runs without the venv
 active and without loading the embedder or hitting the Groq API.
 
---profile-url is the ONE exception. It imports user_profile (and therefore
-langchain_groq), needs the venv active, and makes a network call plus a Groq
-call. The import is local to seed_profile() so every other path keeps the
-property above. Everything else in this file stays stdlib-only — don't hoist
-that import to the top.
+The three --profile-* flags are the ONE exception. They import user_profile (and
+therefore langchain_groq, and pypdf for --profile-pdf), need the venv active, and
+make a Groq call — plus a network call for --profile-url. The import is local to
+seed_profile() so every other path keeps the property above. Everything else in
+this file stays stdlib-only — don't hoist that import to the top.
 """
 import argparse
 import json
@@ -71,8 +72,32 @@ STATE_FILES = {
 SANDBOX = ROOT / "jarvis_sandbox"          # config.SANDBOX
 RECORDING = ROOT / "input.wav"             # voice.py's scratch recording
 
+# Searched in order for a --profile-pdf given as a bare filename. These are the two places
+# a participant's exported profile actually lands: the sandbox (where the file tools write)
+# and study_data (where per-participant material is kept alongside their bio.txt).
+PDF_SEARCH_DIRS = (SANDBOX, BACKUP_ROOT)
+
 # Where the FastAPI backend listens (frontend/src/hooks/useJarvisSocket.ts).
 BACKEND_HOST, BACKEND_PORT = "127.0.0.1", 8000
+
+
+def resolve_pdf(raw: str) -> Path | None:
+    """Find a --profile-pdf argument. Returns None if it doesn't exist anywhere sensible.
+
+    A bare filename is looked up in jarvis_sandbox/ then study_data/, so the moderator can
+    pass what they see in the folder rather than a path. An argument containing a separator
+    is taken literally — resolving `study_data/x.pdf` against the search dirs too would
+    make `study_data/study_data/x.pdf` a silent hit.
+    """
+    candidate = Path(raw)
+    if candidate.is_file():
+        return candidate
+    if candidate.parent == Path("."):
+        for directory in PDF_SEARCH_DIRS:
+            found = directory / candidate.name
+            if found.is_file():
+                return found
+    return None
 
 
 def describe(path: Path) -> str:
@@ -193,8 +218,8 @@ def console_safe(text: str) -> str:
     return text.encode(encoding, errors="replace").decode(encoding, errors="replace")
 
 
-def seed_profile(urls: list, text_files: list) -> bool:
-    """Store the incoming participant's cold-start profile from URLs and/or written text.
+def seed_profile(urls: list, text_files: list, pdf_files: list = ()) -> bool:
+    """Store the cold-start profile from any mix of URLs, written text, and PDF exports.
 
     Must run AFTER wipe() — wipe writes {} over user_profile.json, so seeding first would
     erase itself. Returns False on any failure, and the caller must treat that as fatal:
@@ -205,7 +230,11 @@ def seed_profile(urls: list, text_files: list) -> bool:
     each — the profile has a single `summary` field, so per-source calls would leave only
     the last one standing.
     """
-    described = [str(u) for u in urls] + [f"{p.name} (self-written)" for p in text_files]
+    described = (
+        [str(u) for u in urls]
+        + [f"{p.name} (self-written)" for p in text_files]
+        + [f"{p.name} (PDF export)" for p in pdf_files]
+    )
     print(f"\nSeeding cold-start profile from {len(described)} source(s):")
     for d in described:
         print(f"    {d}")
@@ -221,9 +250,11 @@ def seed_profile(urls: list, text_files: list) -> bool:
     try:
         texts = [(f"self-reported ({p.name})", p.read_text(encoding="utf-8"))
                  for p in text_files]
-        result, failed = learn_from_sources(urls=urls, texts=texts)
+        result, failed = learn_from_sources(urls=urls, texts=texts, pdfs=list(pdf_files))
     except Exception as e:
         print(f"  FAILED: {e}")
+        if "pypdf" in str(e):
+            print("  --profile-pdf needs pypdf: .venv\\Scripts\\python.exe -m pip install pypdf")
         return False
 
     # Partial failure is not fatal — a profile built from the surviving sources is still
@@ -276,6 +307,16 @@ def main():
              "A file rather than an inline string because a pasted multi-line bio does not "
              "survive shell quoting. Repeatable.",
     )
+    parser.add_argument(
+        "--profile-pdf",
+        action="append",
+        metavar="PATH",
+        default=[],
+        help="seed the profile from a PDF (e.g. a LinkedIn 'Save to PDF' export). A bare "
+             "filename is looked up in jarvis_sandbox/ then study_data/. Repeatable, and "
+             "combinable with the other two. Export chrome — suggested connections, "
+             "who-else-viewed, the footer — is stripped before summarizing.",
+    )
     parser.add_argument("--keep-sandbox", action="store_true", help="leave jarvis_sandbox/ contents in place")
     parser.add_argument("--no-backup", action="store_true", help="don't archive current state before wiping")
     parser.add_argument("-y", "--yes", action="store_true", help="skip the confirmation prompt")
@@ -298,7 +339,15 @@ def main():
         if not path.is_file():
             parser.error(f"--profile-text-file: no such file: {path}")
 
-    seeding = bool(profile_urls or profile_text_files)
+    profile_pdf_files = []
+    for raw in args.profile_pdf:
+        found = resolve_pdf(raw)
+        if found is None:
+            searched = ", ".join(str(d) for d in PDF_SEARCH_DIRS)
+            parser.error(f"--profile-pdf: no such file: {raw} (searched {searched})")
+        profile_pdf_files.append(found)
+
+    seeding = bool(profile_urls or profile_text_files or profile_pdf_files)
 
     include_sandbox = not args.keep_sandbox
 
@@ -327,17 +376,36 @@ def main():
         else:
             print("\nNothing to archive - no state files present.")
 
+    # Seeding runs after the wipe (it has to — the wipe blanks user_profile.json), but the
+    # wipe also empties the sandbox. A --profile-pdf living there would be deleted before
+    # it was ever read. Copy it into study_data/ first and seed from the copy: the
+    # participant's source document belongs with the rest of their material anyway, and
+    # under --no-backup the sandbox copy is the only one.
+    if include_sandbox and profile_pdf_files:
+        preserved = []
+        for path in profile_pdf_files:
+            if SANDBOX in path.resolve().parents:
+                BACKUP_ROOT.mkdir(parents=True, exist_ok=True)
+                kept = BACKUP_ROOT / path.name
+                shutil.copy2(path, kept)
+                print(f"\nPreserved {path.name} -> {kept.relative_to(ROOT)} (sandbox is about to be wiped)")
+                preserved.append(kept)
+            else:
+                preserved.append(path)
+        profile_pdf_files = preserved
+
     wipe(include_sandbox)
 
     # Strictly after the wipe (which blanks user_profile.json) and after the backup above
     # (which archived the outgoing participant's profile).
-    if seeding and not seed_profile(profile_urls, profile_text_files):
+    if seeding and not seed_profile(profile_urls, profile_text_files, profile_pdf_files):
         print(
             "\n!! STATE IS WIPED AND NO PROFILE WAS STORED.\n"
             "   Arch 2's only personalization layer is empty, so a session started now\n"
             "   would be labeled arch2 while behaving like arch1 — and every rating and\n"
             "   survey row would carry the wrong condition.\n"
-            "   Fix the URL (or the network, or GROQ_API_KEY) and re-run with --profile-url.\n"
+            "   Fix the source (or the network, or GROQ_API_KEY) and re-run with one of\n"
+            "   --profile-url / --profile-text-file / --profile-pdf.\n"
             f"   The backend refuses to start in this state when JARVIS_STUDY_CONDITION=arch2."
         )
         return 2
@@ -364,7 +432,8 @@ def main():
         # Correct for arch1, fatal for arch2, and the two are told apart only by an env
         # var set in another terminal — so say it here rather than assume the right one.
         print(
-            "\n  No profile seeded (--profile-url / --profile-text-file). The backend\n"
+            "\n  No profile seeded (--profile-url / --profile-text-file / --profile-pdf).\n"
+            "  The backend\n"
             "  refuses to start with JARVIS_STUDY_CONDITION=arch2 and an empty profile,\n"
             "  since the cold-start profile is arch2's only personalization layer.\n"
             "  Seed once per participant - arch1 runs fine either way, it never reads it."
