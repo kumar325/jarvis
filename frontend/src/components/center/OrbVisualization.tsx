@@ -42,6 +42,30 @@ interface Props {
   /** 0-1 amplitude driving the orb's reactivity; defaults to a slow idle breathing pulse. */
   amplitude?: number;
   active?: boolean;
+  /** Jarvis is talking — the orb shifts from gold to red for the duration. */
+  speaking?: boolean;
+}
+
+function hexToRgb(hex: string): [number, number, number] {
+  const h = hex.replace("#", "");
+  const full = h.length === 3 ? h.split("").map((c) => c + c).join("") : h;
+  return [
+    parseInt(full.slice(0, 2), 16),
+    parseInt(full.slice(2, 4), 16),
+    parseInt(full.slice(4, 6), 16),
+  ];
+}
+
+/** Blend two hex colours. Output stays 6-digit hex because the render path appends an
+ * alpha byte to it (`${accent}${alphaHex(...)}`) rather than using rgba(). */
+function mixHex(from: string, to: string, t: number): string {
+  const [r1, g1, b1] = hexToRgb(from);
+  const [r2, g2, b2] = hexToRgb(to);
+  const channel = (a: number, b: number) =>
+    Math.round(a + (b - a) * t)
+      .toString(16)
+      .padStart(2, "0");
+  return `#${channel(r1, r2)}${channel(g1, g2)}${channel(b1, b2)}`;
 }
 
 const RING_COUNT = 3;
@@ -136,7 +160,7 @@ function alphaHex(alpha: number): string {
     .padStart(2, "0");
 }
 
-export function OrbVisualization({ amplitude = 0, active = false }: Props) {
+export function OrbVisualization({ amplitude = 0, active = false, speaking = false }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const particlesRef = useRef<Particle[]>(buildParticles());
   const raysRef = useRef<Ray[]>(buildRays());
@@ -145,10 +169,20 @@ export function OrbVisualization({ amplitude = 0, active = false }: Props) {
     Array.from({ length: NODE_COUNT }, () => ({ x: 0, y: 0, size: 0, alpha: 0 }))
   );
   const amplitudeRef = useRef(amplitude);
+  const speakingRef = useRef(speaking);
+  /** Eased 0-1 position between gold and red, stepped per frame rather than per render. */
+  const speakMixRef = useRef(0);
 
   useEffect(() => {
     amplitudeRef.current = amplitude;
   }, [amplitude]);
+
+  // A ref, not an effect dependency: the render effect resets `t` when it re-runs, so
+  // adding `speaking` to its deps would jolt the breathing and orbit animations every time
+  // Jarvis started or stopped talking.
+  useEffect(() => {
+    speakingRef.current = speaking;
+  }, [speaking]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -182,9 +216,16 @@ export function OrbVisualization({ amplitude = 0, active = false }: Props) {
       t += 0.016;
       ctx.clearRect(0, 0, width, height);
 
-      const accent = getComputedStyle(document.documentElement)
-        .getPropertyValue("--accent")
-        .trim() || "#d4a244";
+      const styles = getComputedStyle(document.documentElement);
+      const gold = styles.getPropertyValue("--accent").trim() || "#d4a244";
+      const red = styles.getPropertyValue("--accent-speaking").trim() || "#d2503f";
+
+      // Ease toward the target instead of snapping: at ~0.06 per frame the crossfade lands
+      // in roughly three quarters of a second, short enough to track who is talking and
+      // slow enough not to flicker on a clipped or stuttering playback stream.
+      const target = speakingRef.current ? 1 : 0;
+      speakMixRef.current += (target - speakMixRef.current) * 0.06;
+      const accent = mixHex(gold, red, speakMixRef.current);
 
       const cx = width / 2;
       const cy = height / 2;

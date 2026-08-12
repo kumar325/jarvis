@@ -21,6 +21,15 @@ function ThumbIcon({ down }: { down?: boolean }) {
   );
 }
 
+/* Gold ring + breathing glow, matching the orb. Both read --accent rather than the literal,
+   so retuning the token moves the orb and these together. The glow needs no conditional:
+   RatingPrompt mounts only while awaitingRating is true, so it arrives and leaves with the
+   prompt itself. */
+const RATING_BUTTON =
+  "rating-glow flex h-8 w-8 items-center justify-center rounded-full border " +
+  "border-[var(--accent)] bg-[var(--surface)] text-[var(--accent)] transition-colors " +
+  "hover:bg-[var(--surface-raised)] hover:text-[var(--text)]";
+
 /** Shown after every model response. Input stays disabled until one of these is clicked,
  * so each exchange in the study carries a rating. */
 export function RatingPrompt({ onRate }: Props) {
@@ -30,14 +39,14 @@ export function RatingPrompt({ onRate }: Props) {
       <button
         onClick={() => onRate("up")}
         aria-label="Rate this response helpful"
-        className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--surface)] text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-raised)] hover:text-[var(--text)]"
+        className={RATING_BUTTON}
       >
         <ThumbIcon />
       </button>
       <button
         onClick={() => onRate("down")}
         aria-label="Rate this response unhelpful"
-        className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--surface)] text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-raised)] hover:text-[var(--text)]"
+        className={RATING_BUTTON}
       >
         <ThumbIcon down />
       </button>

@@ -11,13 +11,24 @@ interface Props {
  *
  * Deliberately text rather than an icon: this is the one control in the UI whose meaning
  * has to be unambiguous to whoever is running the session. */
+const BASE =
+  "h-8 rounded-full bg-[var(--surface)] px-3 text-xs transition-colors " +
+  "disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:text-[var(--text-muted)]";
+
+/* Gold only while actionable. Keyed on `disabled` rather than on mounting — unlike the
+   rating thumbs this button is always in the header, so enablement is the only signal that
+   it's live. Static ring, no pulse: it's a moderator control, and a breathing glow would
+   draw the participant's eye to it through every idle moment of a task. */
+const ENABLED = "border border-[var(--accent)] text-[var(--accent)] shadow-[0_0_12px_var(--accent-glow)] hover:text-[var(--text)]";
+const DISABLED = "border border-[var(--border)] text-[var(--text-muted)]";
+
 export function FinishTaskButton({ onClick, disabled, disabledReason }: Props) {
   return (
     <button
       onClick={onClick}
       disabled={disabled}
       title={disabled ? (disabledReason ?? undefined) : "Mark this task finished and open the survey"}
-      className="h-8 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 text-xs text-[var(--text-muted)] transition-colors hover:text-[var(--text)] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:text-[var(--text-muted)]"
+      className={`${BASE} ${disabled ? DISABLED : ENABLED}`}
     >
       Finish Task
     </button>

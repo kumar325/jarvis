@@ -140,7 +140,7 @@ function App() {
           </>
         }
         clock={<Clock />}
-        orb={<OrbVisualization active={agentBusy} amplitude={amplitude} />}
+        orb={<OrbVisualization active={agentBusy} amplitude={amplitude} speaking={isPlaying} />}
         conversation={<Conversation events={wireEvents} thinking={agentBusy} />}
         rating={awaitingRating ? <RatingPrompt onRate={sendRating} /> : null}
         overlay={
@@ -151,6 +151,7 @@ function App() {
               onSubmit={sendSurvey}
               submitting={surveySubmitting}
               error={surveyError}
+              onClose={() => setSurveyOpen(false)}
             />
           ) : archCompleteShown ? (
             <ArchCompleteNotice

@@ -31,8 +31,12 @@ export function Shell({ header, controls, clock, orb, conversation, rating, inpu
         <div className="w-full max-w-2xl">{conversation}</div>
       </div>
 
+      {/* pb-12 lifts the rating + input row ~0.5in off the bottom edge. Padding rather than
+          a fixed height or absolute position: this is a full-height flex column, so the
+          orb/conversation area above absorbs the offset instead of the input sliding under
+          the viewport edge on a short screen. */}
       {overlay ? null : (
-        <div className="mx-auto w-full max-w-2xl pt-4">
+        <div className="mx-auto w-full max-w-2xl pt-4 pb-12">
           {rating}
           {input}
         </div>

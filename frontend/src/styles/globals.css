@@ -7,6 +7,10 @@
   --accent: #d4a244;
   --accent-glow: color-mix(in srgb, var(--accent) 45%, transparent);
   --accent-dim: color-mix(in srgb, var(--accent) 30%, transparent);
+  /* The orb turns this colour while Jarvis is speaking, so who holds the floor is legible
+     from across the room. Warm rather than a signal red — it sits beside the gold without
+     reading as an error state to a participant. */
+  --accent-speaking: #d2503f;
 
   --bg: #0c0e11;
   --surface: #16191e;
@@ -69,4 +73,28 @@ body {
 
 .thinking-dot {
   animation: thinking-bounce 1.2s ease-in-out infinite;
+}
+
+/* Rating buttons breathe like the orb's outer halo rather than blinking — the orb pulses
+   on 0.75 + sin(t * 0.35), a ~18s cycle, so this stays slow enough to read as the same
+   family of motion in an interface a participant sits in front of for three tasks. */
+@keyframes rating-glow-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 8px var(--accent-glow);
+  }
+  50% {
+    box-shadow: 0 0 16px var(--accent-glow);
+  }
+}
+
+.rating-glow {
+  animation: rating-glow-pulse 6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rating-glow {
+    animation: none;
+    box-shadow: 0 0 12px var(--accent-glow);
+  }
 }
