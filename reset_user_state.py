@@ -26,10 +26,25 @@ By default the outgoing participant's files are archived under study_data/
 before being cleared, so their data isn't destroyed. input.wav is deleted rather
 than archived — it's a transient recording buffer, not study data.
 
+The archive also collects the documents that participant's profile was built from
+(their PDF export, their written bio) into study_data/<label>/sources/, matched
+via user_profile.json's `sources` list and MOVED out of the staging dirs. Left
+loose, they accumulate at the study_data root across participants with nothing
+recording whose was whose — which is exactly what happened over the pilots.
+
+The archive is named for the participant going OUT, which is *not* --participant
+(that names the one coming in, and is what the seeding flags apply to). Naming it
+for the incoming participant is how every pilot archive ended up holding the
+previous person's session. The outgoing label comes from
+study_data/.current_participant, written by the previous reset, falling back to
+the last row of ratings.jsonl and then to a timestamp. --archive-as overrides it.
+
 Usage:
     python reset_user_state.py                          # confirm, archive, wipe
-    python reset_user_state.py --participant P03 -y     # archive as P03, no prompt
+    python reset_user_state.py --participant P04 -y     # P04 is next; archive is named
+                                                        # for whoever just finished
     python reset_user_state.py --status                 # inspect, change nothing
+    python reset_user_state.py --archive-as P03 -y      # override the outgoing label
     python reset_user_state.py --keep-sandbox -y        # leave jarvis_sandbox/ alone
     python reset_user_state.py --no-backup -y           # wipe without archiving
 
@@ -51,7 +66,9 @@ seed_profile() so every other path keeps the property above. Everything else in
 this file stays stdlib-only — don't hoist that import to the top.
 """
 import argparse
+import csv
 import json
+import re
 import shutil
 import socket
 import sys
@@ -72,32 +89,118 @@ STATE_FILES = {
 SANDBOX = ROOT / "jarvis_sandbox"          # config.SANDBOX
 RECORDING = ROOT / "input.wav"             # voice.py's scratch recording
 
-# Searched in order for a --profile-pdf given as a bare filename. These are the two places
-# a participant's exported profile actually lands: the sandbox (where the file tools write)
-# and study_data (where per-participant material is kept alongside their bio.txt).
-PDF_SEARCH_DIRS = (SANDBOX, BACKUP_ROOT)
+# Where a participant's source documents (a LinkedIn PDF export, a written bio) sit before
+# they are seeded, and where a bare --profile-pdf / --profile-text-file name is looked up.
+# The sandbox is where the file tools write; the study_data root is the staging tray the
+# moderator drops documents into. Searched in this order.
+DOC_STAGING_DIRS = (SANDBOX, BACKUP_ROOT, ROOT)
+
+# Of those, the ones a document may be MOVED out of. The repo root is searched (a moderator
+# may well pass a path relative to it) but never emptied: it holds tracked files, and a
+# --profile-text-file pointed at one by mistake would turn into a git deletion.
+DOC_MOVE_DIRS = (SANDBOX, BACKUP_ROOT)
+
+# Subdirectory of the archive that holds the documents a participant's profile was built
+# from, kept apart from the three state JSONs so an archive says at a glance what went in
+# as well as what came out.
+SOURCES_DIRNAME = "sources"
+
+# Written at the end of every labeled reset, naming the participant whose session is about
+# to start. The NEXT reset reads it back to name that participant's archive — see
+# outgoing_label(). Without it the archive dir was named for the incoming participant while
+# holding the outgoing one's data, so every folder was attributed to the wrong person.
+CURRENT_PARTICIPANT_FILE = BACKUP_ROOT / ".current_participant"
+
+# Written by backend/ratings.py and backend/surveys.py. Read here only to recover who the
+# state on disk belongs to when the marker above is missing.
+RATINGS_FILE = BACKUP_ROOT / "ratings.jsonl"
+SURVEY_FILE = BACKUP_ROOT / "survey_responses.csv"
 
 # Where the FastAPI backend listens (frontend/src/hooks/useJarvisSocket.ts).
 BACKEND_HOST, BACKEND_PORT = "127.0.0.1", 8000
 
 
+def rel(path: Path) -> str:
+    """Repo-relative display path, falling back to the absolute one for anything outside."""
+    try:
+        return str(path.resolve().relative_to(ROOT))
+    except ValueError:
+        return str(path)
+
+
+def find_document(name: str) -> Path | None:
+    """Locate a source document by bare filename.
+
+    Staging dirs first, then anywhere under study_data/ (most recently modified first) so a
+    document already archived with an earlier participant is still found. That matters
+    because seeding now MOVES documents into the archive: without this, re-running a
+    PDF-based seed for the same person would fail on a file that is sitting safely one
+    folder deeper.
+    """
+    for directory in DOC_STAGING_DIRS:
+        candidate = directory / name
+        if candidate.is_file():
+            return candidate
+
+    # Matched by name rather than rglob(name) — an export filename is arbitrary text and can
+    # contain glob metacharacters, which rglob would interpret rather than match.
+    if BACKUP_ROOT.is_dir():
+        matches = [p for p in BACKUP_ROOT.rglob("*") if p.is_file() and p.name == name]
+        if matches:
+            return max(matches, key=lambda p: p.stat().st_mtime)
+    return None
+
+
 def resolve_pdf(raw: str) -> Path | None:
     """Find a --profile-pdf argument. Returns None if it doesn't exist anywhere sensible.
 
-    A bare filename is looked up in jarvis_sandbox/ then study_data/, so the moderator can
-    pass what they see in the folder rather than a path. An argument containing a separator
-    is taken literally — resolving `study_data/x.pdf` against the search dirs too would
-    make `study_data/study_data/x.pdf` a silent hit.
+    A bare filename is looked up by find_document(), so the moderator can pass what they see
+    in the folder rather than a path. An argument containing a separator is taken literally
+    — resolving `study_data/x.pdf` against the search dirs too would make
+    `study_data/study_data/x.pdf` a silent hit.
     """
     candidate = Path(raw)
     if candidate.is_file():
         return candidate
     if candidate.parent == Path("."):
-        for directory in PDF_SEARCH_DIRS:
-            found = directory / candidate.name
-            if found.is_file():
-                return found
+        return find_document(candidate.name)
     return None
+
+
+def profile_source_documents() -> list[str]:
+    """Filenames of the documents the CURRENT on-disk profile was seeded from.
+
+    Read from user_profile.json's `sources`, which learn_from_sources() writes as a URL
+    verbatim, a PDF as its bare filename, and a text file as "self-reported (bio.txt)".
+    URLs are skipped — there is no local file to archive.
+
+    This is the attribution link between a loose document and the participant it describes.
+    Matching on a filename prefix instead (PILOT3*) would miss the common case: an export is
+    named after the person, not the participant ID, and "Kaylea Champion, PhD _ LinkedIn.pdf"
+    carries nothing to match on.
+    """
+    path = ROOT / "user_profile.json"
+    if not path.exists():
+        return []
+    try:
+        sources = json.loads(path.read_text(encoding="utf-8")).get("sources", [])
+    except Exception:
+        return []
+
+    names = []
+    for source in sources:
+        if not isinstance(source, str):
+            continue
+        source = source.strip()
+        if source.startswith(("http://", "https://")):
+            continue
+        match = re.fullmatch(r"self-reported \((.+)\)", source)
+        name = match.group(1) if match else source
+        # learn_from_text()'s default label is a bare "self-reported" with no filename —
+        # reachable from the CLI and the eval harness, though not from this script.
+        if name and name != "self-reported" and name not in names:
+            names.append(name)
+    return names
 
 
 def describe(path: Path) -> str:
@@ -158,17 +261,76 @@ def print_state(include_sandbox: bool):
     if include_sandbox:
         print(f"  {'jarvis_sandbox/':<20} {describe_sandbox()}")
     print(f"  {'input.wav':<20} {'present' if RECORDING.exists() else 'absent'}")
+    docs = profile_source_documents()
+    if docs:
+        print(f"  {'profile sources':<20} {', '.join(docs)}")
 
 
-def backup(label: str, include_sandbox: bool) -> Path | None:
-    """Copy state files (and sandbox contents) into study_data/<label>/.
+def archive_source_documents(dest: Path, keep_in_place: set) -> list[str]:
+    """File the outgoing participant's source documents under their archive dir.
 
-    Returns the archive dir, or None if there was nothing worth archiving.
+    MOVED, not copied, when the document is loose in DOC_MOVE_DIRS. Leaving it is what let
+    four participants' bios and a LinkedIn export pile up in the study_data root with
+    nothing recording whose was whose. Three cases are copied instead:
+
+      * a document already filed under some participant — never rob an existing archive.
+        The same person can legitimately be seeded twice (a bio for one arm, a PDF for a
+        later one), and the earlier archive should stay complete;
+      * a document the INCOMING seed is about to read. --profile-pdf paths are resolved
+        before the wipe, so moving one out from under an already-resolved path would fail
+        during seeding — i.e. after state is wiped, the one moment a failure is expensive;
+      * a document sitting in the repo root, which is searched but never emptied.
+
+    Returns one report line per document. Never raises on a missing file: the profile
+    records what it was built from, but the moderator may have moved or renamed it since,
+    and a stale entry there must not take down a reset.
+    """
+    names = profile_source_documents()
+    if not names:
+        return []
+
+    staging = {d.resolve() for d in DOC_MOVE_DIRS}
+    sources_dir = dest / SOURCES_DIRNAME
+    lines = []
+
+    for name in names:
+        found = find_document(name)
+        if found is None:
+            lines.append(f"{name} - not found on disk, nothing archived")
+            continue
+
+        target = sources_dir / found.name
+        if found.resolve() == target.resolve():
+            lines.append(f"{found.name} - already in {SOURCES_DIRNAME}/")
+            continue
+        if target.exists():
+            lines.append(f"{found.name} - already archived; original left at {rel(found.parent)}")
+            continue
+
+        sources_dir.mkdir(parents=True, exist_ok=True)
+        loose = found.parent.resolve() in staging
+        wanted_by_seed = found.resolve() in keep_in_place
+        if loose and not wanted_by_seed:
+            shutil.move(str(found), target)
+            lines.append(f"{found.name} - moved from {rel(found.parent)}")
+        else:
+            shutil.copy2(found, target)
+            why = "needed by the incoming seed" if wanted_by_seed else f"kept in {rel(found.parent)}"
+            lines.append(f"{found.name} - copied ({why})")
+    return lines
+
+
+def backup(label: str, include_sandbox: bool, keep_in_place: set = frozenset()) -> tuple[Path | None, list[str]]:
+    """Copy state files (and sandbox contents) into study_data/<label>/, and file the
+    profile's source documents into study_data/<label>/sources/.
+
+    Returns (archive dir, source-document report lines), or (None, []) if there was
+    nothing worth archiving.
     """
     present = [p for p in STATE_FILES if p.exists()]
     entries = sandbox_entries() if include_sandbox else []
-    if not present and not entries:
-        return None
+    if not present and not entries and not profile_source_documents():
+        return None, []
 
     dest = BACKUP_ROOT / label
     if dest.exists():
@@ -185,7 +347,92 @@ def backup(label: str, include_sandbox: bool) -> Path | None:
                 shutil.copytree(entry, sandbox_dest / entry.name)
             else:
                 shutil.copy2(entry, sandbox_dest / entry.name)
-    return dest
+
+    # After the state files, so a failure while shuffling documents can't cost the JSONs.
+    return dest, archive_source_documents(dest, set(keep_in_place))
+
+
+def _mtime(path: Path) -> float:
+    """Modification time, or 0.0 for a file that isn't there."""
+    return path.stat().st_mtime if path.exists() else 0.0
+
+
+def logged_participant() -> tuple[str | None, str]:
+    """Who the study's own logs say ran most recently, and which log said so.
+
+    ratings.jsonl first: it gets a row on every thumbs up/down, so it exists even for an
+    arm abandoned before the first "Finish Task". survey_responses.csv is the fallback for
+    a session that was rated by nobody.
+    """
+    if RATINGS_FILE.is_file():
+        try:
+            for line in reversed(RATINGS_FILE.read_text(encoding="utf-8").splitlines()):
+                if line.strip():
+                    pid = json.loads(line).get("participant_id")
+                    if pid:
+                        return pid, RATINGS_FILE.name
+        except Exception:
+            pass
+    if SURVEY_FILE.is_file():
+        try:
+            rows = list(csv.DictReader(SURVEY_FILE.read_text(encoding="utf-8").splitlines()))
+            for row in reversed(rows):
+                pid = (row.get("participant_id") or "").strip()
+                if pid:
+                    return pid, SURVEY_FILE.name
+        except Exception:
+            pass
+    return None, ""
+
+
+def outgoing_label(explicit: str | None) -> tuple[str, str, str | None]:
+    """Name the archive dir after the participant whose state is being archived.
+
+    Returns (label, where it came from, warning or None).
+
+    NOT --participant: that names the participant about to start, which is what the seeding
+    flags apply to. Naming the archive after them too is how study_data/PILOT4/ ended up
+    holding PILOT3's session — every folder off by one, discoverable only by reading the
+    profile inside it.
+
+    The marker file wins over the logs because it is written by the reset that created the
+    state being archived. When the logs disagree it is worth saying so: the rows carry the
+    condition and arch_position an analysis will join on, so an archive that disagrees with
+    them is the copy that's wrong.
+    """
+    if explicit:
+        return explicit, "--archive-as", None
+
+    marker = ""
+    if CURRENT_PARTICIPANT_FILE.is_file():
+        # utf-8-sig: the moderator may well have written this file by hand, and both
+        # Notepad and PowerShell's Set-Content -Encoding utf8 prepend a BOM, which would
+        # otherwise ride along into the directory name as an invisible leading character.
+        marker = CURRENT_PARTICIPANT_FILE.read_text(encoding="utf-8-sig").strip()
+
+    logged, log_name = logged_participant()
+    if marker:
+        # Only a disagreement about a session that has actually run is worth flagging. A
+        # participant who has just been reset in has no rows yet, so the last row naming
+        # someone else is the normal state of affairs — comparing IDs alone would warn on
+        # every single reset, which trains the moderator to skip the warning that matters.
+        ran_since_marker = bool(log_name) and _mtime(BACKUP_ROOT / log_name) > _mtime(CURRENT_PARTICIPANT_FILE)
+        warning = None
+        if logged and logged != marker and ran_since_marker:
+            warning = (
+                f"{CURRENT_PARTICIPANT_FILE.name} says {marker}, but {log_name} has rows "
+                f"for {logged} written since that reset.\n"
+                f"     Archiving as {marker}. If the logged rows are right (the backend was "
+                f"labeled {logged}), re-run with --archive-as {logged}."
+            )
+        return marker, CURRENT_PARTICIPANT_FILE.name, warning
+    if logged:
+        return logged, f"last row of {log_name}", None
+    return (
+        f"reset_{datetime.now():%Y%m%d_%H%M%S}",
+        "no record of who ran",
+        "No .current_participant marker and no rated sessions - archiving under a timestamp.",
+    )
 
 
 def wipe(include_sandbox: bool):
@@ -287,7 +534,19 @@ def seed_profile(urls: list, text_files: list, pdf_files: list = ()) -> bool:
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--participant", help="label for the archive dir (default: reset_<timestamp>)")
+    parser.add_argument(
+        "--participant",
+        help="the INCOMING participant, the one whose session starts after this reset. The "
+             "seeding flags below apply to them. Recorded in study_data/.current_participant "
+             "so the NEXT reset can name their archive; it does NOT name the archive written "
+             "now, which belongs to the participant going out (see --archive-as).",
+    )
+    parser.add_argument(
+        "--archive-as",
+        metavar="LABEL",
+        help="name the archive dir written now, overriding the participant recorded by the "
+             "previous reset. Needed only when that record is missing or wrong.",
+    )
     parser.add_argument(
         "--profile-url",
         action="append",
@@ -313,7 +572,9 @@ def main():
         metavar="PATH",
         default=[],
         help="seed the profile from a PDF (e.g. a LinkedIn 'Save to PDF' export). A bare "
-             "filename is looked up in jarvis_sandbox/ then study_data/. Repeatable, and "
+             "filename is looked up in jarvis_sandbox/, then study_data/, then inside any "
+             "participant archive (so a document filed with an earlier arm still resolves). "
+             "Repeatable, and "
              "combinable with the other two. Export chrome — suggested connections, "
              "who-else-viewed, the footer — is stripped before summarizing.",
     )
@@ -343,16 +604,30 @@ def main():
     for raw in args.profile_pdf:
         found = resolve_pdf(raw)
         if found is None:
-            searched = ", ".join(str(d) for d in PDF_SEARCH_DIRS)
-            parser.error(f"--profile-pdf: no such file: {raw} (searched {searched})")
+            searched = ", ".join(rel(d) if d != ROOT else "the repo root" for d in DOC_STAGING_DIRS)
+            parser.error(
+                f"--profile-pdf: no such file: {raw} "
+                f"(searched {searched}, then every archive under {rel(BACKUP_ROOT)})"
+            )
         profile_pdf_files.append(found)
 
     seeding = bool(profile_urls or profile_text_files or profile_pdf_files)
 
     include_sandbox = not args.keep_sandbox
 
+    # Documents the incoming seed still has to read. archive_source_documents() copies these
+    # rather than moving them — see its docstring.
+    keep_in_place = {p.resolve() for p in profile_pdf_files + profile_text_files}
+
+    label, label_source, label_warning = outgoing_label(args.archive_as)
+
     print("Current participant state:")
     print_state(include_sandbox)
+
+    if not args.no_backup:
+        print(f"\nThis state will be archived as {label} (from {label_source}).")
+        if label_warning:
+            print(f"  !! {label_warning}")
 
     if args.status:
         if backend_running():
@@ -369,10 +644,11 @@ def main():
     if args.no_backup:
         print("\nSkipping backup (--no-backup).")
     else:
-        label = args.participant or f"reset_{datetime.now():%Y%m%d_%H%M%S}"
-        dest = backup(label, include_sandbox)
+        dest, doc_lines = backup(label, include_sandbox, keep_in_place)
         if dest:
             print(f"\nArchived previous state to {dest.relative_to(ROOT)}")
+            for line in doc_lines:
+                print(f"  {SOURCES_DIRNAME}/  {line}")
         else:
             print("\nNothing to archive - no state files present.")
 
@@ -395,6 +671,21 @@ def main():
         profile_pdf_files = preserved
 
     wipe(include_sandbox)
+
+    # From here on the state on disk belongs to the incoming participant, so record who that
+    # is — the next reset names their archive from it. Written before seeding so it survives
+    # the exit-2 path below: a failed seed doesn't change whose session is starting.
+    BACKUP_ROOT.mkdir(parents=True, exist_ok=True)
+    if args.participant:
+        CURRENT_PARTICIPANT_FILE.write_text(args.participant, encoding="utf-8")
+        print(f"\nNext session's state belongs to {args.participant} "
+              f"(recorded in {rel(CURRENT_PARTICIPANT_FILE)}).")
+    else:
+        # A stale marker is worse than none: it would name the next archive after the
+        # participant before last. Cleared, so the fallback reads the rating rows instead.
+        CURRENT_PARTICIPANT_FILE.unlink(missing_ok=True)
+        print(f"\nNo --participant given, so {CURRENT_PARTICIPANT_FILE.name} was cleared - the "
+              f"next reset will name its archive from {RATINGS_FILE.name}.")
 
     # Strictly after the wipe (which blanks user_profile.json) and after the backup above
     # (which archived the outgoing participant's profile).

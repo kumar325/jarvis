@@ -28,6 +28,14 @@ Create:
 Use the participant's real ID in the filename. study_data\ is the convention:
 it is gitignored, and the reset script never wipes it — it only archives into it.
 
+Expect the file to move. At the NEXT reset, every document the profile was built
+from is filed into that participant's archive:
+
+    study_data\P01\sources\P01_bio.txt
+
+So a bio missing from study_data\ has not been lost — it is with the rest of that
+participant's data. Bare filenames keep working: archives are searched too.
+
 Rules for the paragraph:
 
   - One paragraph of plain prose. No bullet points, no markdown, no headings.
@@ -38,7 +46,7 @@ Rules for the paragraph:
   - It must be about the participant and nobody else. A page or paragraph about
     a second person risks the two being merged into one profile.
 
-Format reference: study_data\PILOT_bio.txt.
+Format reference: study_data\PILOT3\sources\PILOT3_bio.txt.
 
 Why a file and not a command-line string: a multi-line paragraph does not
 survive shell quoting.
@@ -107,6 +115,13 @@ summarized into one profile in a single call:
 What that command does, in order: archives the previous participant's state into
 study_data\, wipes the three personalization JSON files, then seeds the new
 cold-start profile.
+
+--participant names the participant coming IN — the one this seed is for. The
+archive written by the same command is named for the participant going OUT, taken
+from study_data\.current_participant (which the previous reset wrote). So the
+command above creates study_data\<previous participant>\ and records P01 as next.
+Check the line it prints — "This state will be archived as ..." — before saying
+yes. If it names the wrong person, re-run with --archive-as <that participant>.
 
 IF IT EXITS WITH CODE 2 AND A LOUD BANNER: state is already wiped and no profile
 was stored. Do not start an arch2 session. Fix the source and re-run.

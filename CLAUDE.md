@@ -142,8 +142,8 @@ into the system prompt. Keep those two facts separate — they are not in tensio
 Ratings go to **both** `study_data/ratings.jsonl` and `preferences.json`. ratings.jsonl is
 the study's source of truth — it is the only one carrying `participant_id` and
 `condition`. preferences.json is a flat list with neither, so it is per-session scratch:
-it is only meaningful if `reset_user_state.py --participant P0X` runs between every
-participant, which archives it to `study_data/P0X/`.
+it is only meaningful if `reset_user_state.py` runs between every participant, which
+archives it to `study_data/<outgoing participant>/`.
 
 `backend/state.py` also *reads* all three files, but only to build the `/vitals` HUD
 counters — that is not prompt injection, and PREFERENCE EXAMPLES climbing during a session
@@ -275,6 +275,8 @@ python eval/run_eval.py --ablations no_web_search,full --limit 3
 ```powershell
 # 1. ONCE per participant — reset state and seed the cold-start profile. Seed it even
 #    when arch1 runs first: it's per-participant, and arch1 simply never reads it.
+#    --participant names the participant coming IN; the archive this writes is named for
+#    the one going OUT (see "Archiving between participants" below).
 python reset_user_state.py --participant P03 --profile-url https://... -y
 #    or --profile-text-file bio.txt, or --profile-pdf linkedin.pdf (all combinable)
 
@@ -359,8 +361,8 @@ mix; those are not equivalent inputs (written text is what someone chooses to di
 public page or an exported profile is what's already visible) and a result that hinges on
 the difference should be visible.
 
-`--profile-pdf` takes a bare filename and looks in `jarvis_sandbox/` then `study_data/`,
-or an explicit path. It exists because a LinkedIn profile is usually only reachable behind
+`--profile-pdf` takes a bare filename and looks in `jarvis_sandbox/`, then `study_data/`,
+then inside any participant archive, or an explicit path. It exists because a LinkedIn profile is usually only reachable behind
 a login — scraping the URL returns a wall, while the participant can hand over a "Save to
 PDF" export. Two things it handles that are easy to get wrong:
 
@@ -378,6 +380,30 @@ PDF" export. Two things it handles that are easy to get wrong:
 
 A scanned or image-only PDF extracts to nothing and lands in the normal `failed` list, so
 it hits the exit-2 banner rather than storing an empty summary.
+
+### Archiving between participants
+
+`reset_user_state.py` writes `study_data/<label>/` holding the three state JSONs, a copy of
+`jarvis_sandbox/`, and a `sources/` dir with the documents that participant's profile was
+built from. Two things about it are load-bearing:
+
+- **`<label>` is the participant going OUT, not `--participant`.** `--participant` names the
+  one coming in, because that's who the seeding flags describe. Using it for the archive too
+  is how the pilot archives ended up uniformly off by one — `study_data/PILOT4/` holding
+  PILOT3's session — which is only discoverable by opening the profile inside and reading
+  who it describes. The outgoing label comes from `study_data/.current_participant`, written
+  by the previous reset, falling back to the last `ratings.jsonl` row and then a timestamp;
+  `--archive-as` overrides it. A marker/log disagreement is only flagged when rows were
+  written *after* the marker — otherwise every fresh reset would warn, since the incoming
+  participant has no rows yet.
+- **Source documents are moved, matched via `user_profile.json`'s `sources`.** Not matched
+  by filename prefix: a LinkedIn export is named after the person
+  (`Kaylea Champion, PhD _ LinkedIn.pdf`), not the participant ID, so a `PILOT3*` glob would
+  miss it and a blanket sweep of the `study_data/` root would file other participants' bios
+  under whoever is archived next. Two cases are copied rather than moved — a document already
+  filed under some participant (never rob an existing archive; the same person can be seeded
+  twice), and one the incoming seed is about to read (paths are resolved before the wipe, so
+  moving it would fail during seeding, after state is gone).
 
 Two things the summarizer prompt defends against, both found the hard way:
 
