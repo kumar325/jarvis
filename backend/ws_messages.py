@@ -1,6 +1,6 @@
 """Typed schemas for the WebSocket message contract between the HUD frontend and this backend."""
 from typing import Any, Literal
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 
 class UserTextMessage(BaseModel):
@@ -24,19 +24,15 @@ class RatingMessage(BaseModel):
     rating: Literal["up", "down"]
 
 
-class TaskSurveyMessage(BaseModel):
-    """Client -> server: the post-task evaluation, sent once when the moderator has marked
-    a task finished and the participant has answered all three questions.
+class TaskCompleteMessage(BaseModel):
+    """Client -> server: the moderator has marked a task finished.
 
-    Deliberately carries no task number — the server derives it from the survey log so a
-    browser refresh can't restart the count (see surveys.record_survey). The 1-5 bounds are
-    enforced here rather than trusted from the UI: an out-of-range value would be a silently
-    unusable row in the analysis CSV.
+    Carries nothing but its own type. The three evaluation questions are answered on a
+    paper worksheet now, so this records only the boundary — and deliberately carries no
+    task number either, since the server derives that from the log so a browser refresh
+    can't restart the count (see tasks.record_task_complete).
     """
-    type: Literal["task_survey"] = "task_survey"
-    personalized_rating: int = Field(ge=1, le=5)
-    accuracy_rating: Literal["yes", "partially", "no"]
-    trust_rating: int = Field(ge=1, le=5)
+    type: Literal["task_complete"] = "task_complete"
 
 
 class TaskStateMessage(BaseModel):
@@ -51,24 +47,25 @@ class TaskStateMessage(BaseModel):
     arch_complete: bool
 
 
-class SurveyRecordedMessage(BaseModel):
-    """Server -> client: a survey response reached disk. This is the frontend's cue to
-    clear the survey card — sent only after the append succeeds, so a failed write leaves
-    the card up with the answers still in it rather than silently discarding them."""
-    type: Literal["survey_recorded"] = "survey_recorded"
+class TaskRecordedMessage(BaseModel):
+    """Server -> client: a task boundary reached disk. This is the frontend's cue to take
+    the Finish Task button out of its pending state — sent only after the append succeeds,
+    so a failed write leaves the button clickable for a retry rather than silently dropping
+    the boundary and shifting every later task number."""
+    type: Literal["task_recorded"] = "task_recorded"
     task_number: int
     next_task: int
     arch_complete: bool
 
 
-class SurveyErrorMessage(BaseModel):
-    """Server -> client: the survey could not be written.
+class TaskErrorMessage(BaseModel):
+    """Server -> client: the task boundary could not be written.
 
     A distinct type from ErrorMessage because the frontend renders those into the
     participant's conversation log; a disk problem is an operator concern and belongs on
-    the survey card (which only the moderator is looking at), not in the transcript.
+    the moderator's own control, not in the participant's transcript.
     """
-    type: Literal["survey_error"] = "survey_error"
+    type: Literal["task_error"] = "task_error"
     message: str
 
 

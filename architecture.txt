@@ -1,18 +1,32 @@
 Architectures
 Arch 1 — Generic AI Baseline
-The same assistant as Arch 2 — same model (openai/gpt-oss-120b), same base system prompt, same tools (web search, file sandbox), same voice interface — with the cold-start profile injection disabled. No profile text is added to the system prompt — whether or not a URL has been scraped for that participant — so every participant receives an identical assistant. Represents a competent off-the-shelf AI assistant that happens to know nothing about the user.
+The same assistant as Arch 2 — same model (openai/gpt-oss-120b), same base system prompt, 
+same tools (web search, file sandbox), same voice interface — with the cold-start profile
+ injection disabled. No profile text is added to the system prompt — whether or not a 
+ profile has been built for that participant — so every participant receives an identical 
+ assistant. Represents a competent off-the-shelf AI assistant that happens to know nothing 
+ about the user.
+
 Arch 2 — Jarvis with Cold-Start Personalization
-Jarvis with URL cold-start active. Before the session, the participant provides one public URL (LinkedIn or GitHub). Jarvis scrapes it, builds a profile summary, and injects it into the system prompt. Represents the personalized architecture being evaluated.
-Both architectures run the same model, the same base system prompt, and the same tools. The only difference is whether the URL-derived profile summary is injected into the system prompt — so personalization is the only variable being tested.
+Jarvis with user cold-start active. Before the session, the participant provides a profile pdf
+collected in the screener survey. Jarvis summarizes in 10 sentences into a profile and injects 
+that summary into the system prompt. Represents the personalized architecture being evaluated.
+
+Both architectures run the same model, the same base system prompt, and the same tools. The only 
+difference is whether the participant-derived profile summary is injected into the system prompt — 
+so personalization is the only variable being tested.
+
+
+
+
 
 
 Screener Survey
 Sent before the session to decide who to invite.
 What is your age? (must be 18–25)
 What is your major and year in school?
-Do you have a public LinkedIn, GitHub, or personal website you would be comfortable sharing for research purposes? (yes / no)
 How often do you use AI assistants like ChatGPT or Claude? (never / occasionally / regularly / daily)
-What is your personal background — where are you from, what are your interests, and anything else you feel comfortable sharing?
+In your own words, tell us about yourself — where you're from, what you study, what you're interested in, how you spend your time, and anything else you feel comfortable sharing. Please write at least 5–10 sentences, in first person. (Required. Answers shorter than a few sentences can't be used.)
 
 The Three Tasks
 Fixed scripts — read to the participant exactly as written. Same 3 tasks for both architectures.
@@ -45,5 +59,4 @@ What to Reset Between Participants
 user_profile.json — clear remembered facts and profile summary
 preferences.json — clear all preference pairs
 user_style.json — clear style summary
-Re-run URL scraper fresh with new participant's URL for Arch 2
-
+Re-seed the profile fresh from the new participant's written paragraph for Arch 2

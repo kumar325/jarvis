@@ -46,7 +46,7 @@ from style_tracker import record_utterance
 # what the model will really see.
 from user_profile import get_profile_summary
 
-from . import audio, ratings, state, surveys
+from . import audio, ratings, state, tasks
 from .ws_messages import (
     AssistantTextMessage,
     DirectivesUpdateMessage,
@@ -55,10 +55,10 @@ from .ws_messages import (
     RatingMessage,
     SessionInfoMessage,
     SetTtsMessage,
-    SurveyErrorMessage,
-    SurveyRecordedMessage,
+    TaskCompleteMessage,
+    TaskErrorMessage,
+    TaskRecordedMessage,
     TaskStateMessage,
-    TaskSurveyMessage,
     ToolCallMessage,
     ToolResultMessage,
     TranscriptMessage,
@@ -83,10 +83,10 @@ app.add_middleware(
 # independently is how they drift apart.
 #
 # Which arm this process serves, and which of the participant's two arms it is. The
-# position is derived from the survey log rather than taken from a third env var: the
+# position is derived from the task log rather than taken from a third env var: the
 # moderator already has two labels to get right, and order is confounded with architecture
 # in a within-subjects design unless it is both counterbalanced at the desk and recorded.
-ARCH_POSITION = surveys.arch_position(PARTICIPANT_ID, STUDY_CONDITION)
+ARCH_POSITION = tasks.arch_position(PARTICIPANT_ID, STUDY_CONDITION)
 
 # Printed to the operator's terminal (never to the participant's screen) so a mislabeled
 # session is caught before it's run rather than found at analysis time.
@@ -126,7 +126,7 @@ def check_cold_start_profile():
       arch2 with an empty profile  -> behaves like the arch1 baseline
       arch1 still injecting        -> behaves like arch2
 
-    Both would still stamp their claimed condition on every rating and survey row, and
+    Both would still stamp their claimed condition on every rating and task row, and
     nothing downstream could detect it afterwards. Hence the check here, before the
     participant sits down.
     """
@@ -289,22 +289,22 @@ async def ws_endpoint(websocket: WebSocket):
     async def send_task_state():
         """Tell the client how far through this arm the participant is.
 
-        Read from the survey log rather than held in connection state, so a mid-session
+        Read from the task log rather than held in connection state, so a mid-session
         browser refresh (which starts a whole new connection) resumes at the right task
         instead of showing "Task 1 of 3" again.
         """
         try:
             completed = await run_in_threadpool(
-                surveys.count_completed_tasks, PARTICIPANT_ID, STUDY_CONDITION
+                tasks.count_completed_tasks, PARTICIPANT_ID, STUDY_CONDITION
             )
         except Exception as e:
-            log_operator(f"failed to read survey log for task state: {e}")
+            log_operator(f"failed to read task log for task state: {e}")
             completed = 0
         await send_json_safe(
             TaskStateMessage(
                 completed_tasks=completed,
                 next_task=completed + 1,
-                arch_complete=completed >= surveys.TASKS_PER_ARCH,
+                arch_complete=completed >= tasks.TASKS_PER_ARCH,
             ).model_dump()
         )
 
@@ -486,44 +486,45 @@ async def ws_endpoint(websocket: WebSocket):
         except Exception as e:
             log_operator(f"failed to save preference pair: {e}")
 
-    async def handle_task_survey(incoming: TaskSurveyMessage):
-        """One post-task evaluation -> one row in survey_responses.csv.
+    async def handle_task_complete(_incoming: TaskCompleteMessage):
+        """One finished task -> one boundary row in task_events.csv.
 
         Entirely separate from handle_rating above: that fires on every model response,
         this fires once per task when the moderator marks it finished. They share no state
         and land in different files.
+
+        The three evaluation questions live on a paper worksheet now, so nothing about how
+        the task *went* passes through here — only that it ended, and when.
         """
         try:
             task_number = await run_in_threadpool(
-                surveys.record_survey,
+                tasks.record_task_complete,
                 session_id,
                 PARTICIPANT_ID,
                 STUDY_CONDITION,
-                incoming.personalized_rating,
-                incoming.accuracy_rating,
-                incoming.trust_rating,
                 ARCH_POSITION,
             )
         except Exception as e:
             # Unlike a rating, this is NOT acknowledged optimistically. A rating is one of
-            # many and the participant is mid-conversation behind a gate; a survey is one
-            # of three and the moderator is already looking at the screen, so it's better
-            # to keep the filled-in card up for a retry than to drop the response.
-            log_operator(f"failed to record task survey: {e}")
+            # many and the participant is mid-conversation behind a gate; a boundary is one
+            # of three, the moderator is already looking at the screen, and a dropped one
+            # shifts the numbering of every task after it — so it's better to leave the
+            # button clickable for a retry than to lose the row.
+            log_operator(f"failed to record task boundary: {e}")
             await send_json_safe(
-                SurveyErrorMessage(message=f"could not save the survey: {e}").model_dump()
+                TaskErrorMessage(message=f"could not save the task boundary: {e}").model_dump()
             )
             return
 
         log_operator(
-            f"task survey recorded: participant={PARTICIPANT_ID} arch={STUDY_CONDITION} "
-            f"arm={ARCH_POSITION} task={task_number} -> {surveys.SURVEY_PATH.name}"
+            f"task complete recorded: participant={PARTICIPANT_ID} arch={STUDY_CONDITION} "
+            f"arm={ARCH_POSITION} task={task_number} -> {tasks.TASK_EVENTS_PATH.name}"
         )
         await send_json_safe(
-            SurveyRecordedMessage(
+            TaskRecordedMessage(
                 task_number=task_number,
                 next_task=task_number + 1,
-                arch_complete=task_number >= surveys.TASKS_PER_ARCH,
+                arch_complete=task_number >= tasks.TASKS_PER_ARCH,
             ).model_dump()
         )
 
@@ -596,16 +597,17 @@ async def ws_endpoint(websocket: WebSocket):
                     )
                 continue
 
-            if kind == "task_survey":
+            if kind == "task_complete":
                 try:
-                    await handle_task_survey(TaskSurveyMessage.model_validate(payload))
+                    await handle_task_complete(TaskCompleteMessage.model_validate(payload))
                 except ValidationError as e:
-                    # A survey_error rather than an ErrorMessage: this never belongs in the
-                    # participant's transcript, and the card needs to re-enable Submit.
-                    log_operator(f"malformed task survey message: {e}")
+                    # A task_error rather than an ErrorMessage: this never belongs in the
+                    # participant's transcript, and the button needs to become clickable
+                    # again.
+                    log_operator(f"malformed task complete message: {e}")
                     await send_json_safe(
-                        SurveyErrorMessage(
-                            message="the survey answers didn't validate — try submitting again"
+                        TaskErrorMessage(
+                            message="the task message didn't validate — try again"
                         ).model_dump()
                     )
                 continue

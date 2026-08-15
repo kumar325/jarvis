@@ -56,16 +56,16 @@ backend/            — FastAPI WebSocket server wrapping ask_jarvis() for the w
   server.py         — /ws endpoint, TTS state, rating + set_tts control messages
   audio.py          — browser wav bytes <-> voice.transcribe() / speak_to_bytes()
   ratings.py        — appends thumbs up/down rows to study_data/ratings.jsonl
-  surveys.py        — appends post-task survey rows to study_data/survey_responses.csv,
+  tasks.py          — appends one task-boundary row to study_data/task_events.csv,
                       derives the task number and arm position from that file
-summarize_session.py — read a session back: exchanges/task, durations, ratings, surveys
+summarize_session.py — read a session back: exchanges/task, durations, ratings
   state.py          — /vitals /directives /documents REST payloads (no longer rendered)
   ws_messages.py    — pydantic schemas for the client/server message contract
 frontend/           — Vite + React + Tailwind study UI (see frontend/src/)
-  src/App.tsx       — wiring: socket, audio capture, input mode, rating gate, survey gate
+  src/App.tsx       — wiring: socket, audio capture, input mode, rating gate, task boundary
   src/hooks/        — useJarvisSocket, useAudioCapture, useAudioPlayback, useOrbAmplitude
   src/components/   — layout/ (Header, Clock, MuteButton, FinishTaskButton, Shell),
-                      center/ (Orb, Conversation, CommandInput, RatingPrompt, TaskSurvey,
+                      center/ (Orb, Conversation, CommandInput, RatingPrompt,
                       ArchCompleteNotice)
 eval/
   run_eval.py       — ablation harness, writes CSV to eval/results/
@@ -85,7 +85,7 @@ default and the backend's port in sync (both 8000).
 ## Personalization layers (injection order in system prompt)
 
 **This repo is BOTH arms** (see architecture.txt). They are the same code — same model,
-same base prompt, same tools, same UI, same survey, same log files. The only difference is
+same base prompt, same tools, same UI, same worksheet, same log files. The only difference is
 whether `system_prompt.py` injects the URL-derived profile summary:
 
 - `JARVIS_STUDY_CONDITION=arch2` → injected. The personalized architecture.
@@ -97,7 +97,7 @@ whether `system_prompt.py` injects the URL-derived profile summary:
 what gets printed can't disagree with what the model receives.
 
 One repo rather than two on purpose: "personalization is the only variable" then holds by
-construction. With two repos it would depend on keeping the survey, the CSV schema, the
+construction. With two repos it would depend on keeping the task log, the CSV schema, the
 WebSocket contract and the UI byte-identical by hand — and a drifted *instrument* is a
 worse confound than a drifted treatment, because it's invisible.
 
@@ -154,33 +154,44 @@ Mute/unmute phrases ("talk off", "mute") are recorded by the CLI but deliberatel
 the web path — `record_utterance` sits after the `parse_tts_command` guard, since a
 control phrase is not a speech sample worth mirroring.
 
-### Post-task survey (study_data/survey_responses.csv)
+### Task boundaries (study_data/task_events.csv)
 
-Separate from the per-response thumbs up/down, which is unchanged and still fires on every
-model reply. The survey is one row per *task*: the moderator clicks **Finish Task** in the
-header, the orb and input are replaced by a three-question card (personalized 1-5,
-accurate yes/partially/no, trust 1-5), and all three are mandatory before Submit unlocks —
-the same disable-until-answered contract as the rating prompt.
+The three post-task evaluation questions (personalized 1-5, accurate yes/partially/no,
+trust 1-5) are answered on a **paper worksheet** — they are no longer in the app. What the
+app still owns is the boundary: the moderator clicks **Finish Task** in the header and one
+row is appended recording *that* a task ended, never how it went. Separate from the
+per-response thumbs up/down, which is unchanged and still fires on every model reply.
 
-Columns: `participant_id, arch, task_number, personalized_rating, accuracy_rating,
-trust_rating, timestamp, session_id, arch_position`. Append new columns at the end;
-analysis and Excel both depend on the order. `arch` carries the same `arch1`/`arch2` string as ratings.jsonl's
-`condition` — the column is named `arch` per the survey spec, the values match the rest of
-the repo.
+Columns: `participant_id, arch, task_number, timestamp, session_id, arch_position`. Append
+new columns at the end; analysis and Excel both depend on the order. `arch` carries the same
+`arch1`/`arch2` string as ratings.jsonl's `condition` — the column is named `arch` per the
+survey spec, the values match the rest of the repo. `session_id` is what matches a paper
+worksheet back to its digital transcript.
 
-Two design points worth not undoing:
+`study_data/survey_responses.csv` is **frozen historical pilot data** — nothing appends to
+it again, and it must not be merged into task_events.csv. Answer-less rows in a file named
+for its answers would mean every analysis query started by filtering blanks, and a reader
+would have to work out which era a row came from. `summarize_session.py` reads it only as a
+per-arm fallback, so pilot reports still show their answers.
+
+Three design points worth not undoing:
 
 - **The server assigns `task_number`**, by counting existing rows for this
   (participant, arch) — the client never sends it. A browser refresh resets all frontend
   state, so a client-owned counter would restart at 1 and log two rows as task 1.
   `reset_user_state.py` never touches this file (it only clears the three personalization
   JSONs and archives *into* study_data/), so the count survives resets and restarts.
-- **Submission is server-confirmed, not optimistic.** A rating clears its gate on click so
-  a disk error can't strand a participant mid-conversation; a survey keeps the filled-in
-  card up until `survey_recorded` arrives. There are only three of these per arm and the
-  moderator is already at the screen, so a retry beats a silent drop. Failures come back as
-  `survey_error` (not `ErrorMessage`) specifically so they never render into the
-  participant's transcript.
+- **Recording is server-confirmed, not optimistic.** A rating clears its gate on click so a
+  disk error can't strand a participant mid-conversation; the Finish Task button stays in
+  "Saving…" until `task_recorded` arrives. A dropped boundary shifts the number of every
+  task after it, the moderator is already at the screen, and there are only three per arm —
+  so a retry beats a silent drop. Failures come back as `task_error` (not `ErrorMessage`)
+  specifically so they never render into the participant's transcript.
+- **Finish Task is two-step** — "Finish Task" → "Confirm?" → click again, disarming after
+  4s or on blur. The survey card used to be the escape hatch for a misclick (it could be
+  closed without submitting); with the questions on paper there is no card, so a single
+  click would write a phantom boundary and renumber everything after it. Same shape as the
+  two-step delete in `tools/files.py`.
 
 After task 3, the UI shows "Arch complete — ready for next phase" instead of returning to
 the input box. It's dismissable — a 4th task still logs honestly as task 4 rather than
@@ -336,15 +347,15 @@ The backend prints `[jarvis] study condition=… participant=…` at startup —
 before the participant sits down. Unset values fall back to `unspecified` /
 `unassigned` rather than guessing, so an unlabeled session is obvious in the log.
 
-It also prints one line per post-task survey (`task survey recorded: participant=… arch=…
-task=…`). Since the task number is derived from survey_responses.csv, that line is the
-cheapest check that the label vars are right — a survey landing as task 1 when you expected
-task 3 means the participant or arch string doesn't match the earlier rows.
+It also prints one line per finished task (`task complete recorded: participant=… arch=…
+task=…`). Since the task number is derived from task_events.csv, that line is the cheapest
+check that the label vars are right — a boundary landing as task 1 when you expected task 3
+means the participant or arch string doesn't match the earlier rows.
 
 ### Cold-start profile (arch2 only)
 
 The URL-derived summary is Arch 2's **only** personalization layer. With it empty, the
-backend still answers normally and still stamps `arch2` on every rating and survey row — so
+backend still answers normally and still stamps `arch2` on every rating and task row — so
 the session looks fine, produces data, and is actually running the arch1 baseline. Nothing
 downstream can detect that afterwards. Two mechanisms exist so that state can't be reached
 by accident:
@@ -372,9 +383,9 @@ Each participant does all three tasks under **both** arms, so order is confounde
 architecture unless it is counterbalanced *and* recorded. Alternate at the desk
 (P01: arch1→arch2, P02: arch2→arch1, …) — the code can only record the order, not choose it.
 
-`arch_position` (1 or 2) is stamped on every ratings.jsonl row and every survey CSV row.
-It is **derived**, not another env var: at startup the backend checks whether the *other*
-arch already has survey rows for this participant. The moderator has two labels to get
+`arch_position` (1 or 2) is stamped on every ratings.jsonl row and every task_events.csv
+row. It is **derived**, not another env var: at startup the backend checks whether the
+*other* arch already has task rows for this participant. The moderator has two labels to get
 right already, and this one is recoverable from data they can't get wrong. It prints in
 the startup line (`arm=2 of 2`), so a wrong value is visible before the participant sits
 down. Caveat: an arm abandoned before its first "Finish Task" leaves no rows, so the next
@@ -469,19 +480,6 @@ Use the same string for `reset_user_state.py --participant P03`.
 
 ---
 
-## Paper todos (from advisor)
-- [x] Investigate UpTrain for automatic evaluation
-- [x] Functionalize/reorganize files
-- [x] Improve RAG pipeline grounding
-- [x] Fix eval to test personalization-dependent queries
-- [ ] Tune hyperparameters (k, similarity threshold for preference retrieval)
-- [ ] Plan user study with 5-10 live test subjects
-- [ ] Investigate FAISS/ChromaDB for faster preference retrieval (future work)
-- [ ] Active learning layer — Jarvis proactively asks profile-filling questions
-- [ ] Investigate MCP
-
----
-
 ## What NOT to do
 - Do not modify user_profile.json directly — use remember_fact() / forget_fact()
 - Do not re-add remembered facts, style, or preference examples to the system prompt, or
@@ -492,9 +490,12 @@ Use the same string for `reset_user_state.py --participant P03`.
   summary outright, so a participant volunteering a link mid-session would replace the
   cold start with a warm one, and if that happened in the first arm the second arm would
   run against a different profile.
-- Do not hand-edit or delete rows from study_data/survey_responses.csv mid-study — the
-  next task number is counted from it, so removing a row makes the following survey
-  overwrite that task's slot. Fix it after data collection, not during.
+- Do not hand-edit or delete rows from study_data/task_events.csv mid-study — the next task
+  number is counted from it, so removing a row makes the following task overwrite that
+  task's slot. Fix it after data collection, not during.
+- Do not append to study_data/survey_responses.csv or merge it into task_events.csv. It is
+  frozen pilot data from when the three evaluation questions were on screen; they are on a
+  paper worksheet now. See backend/tasks.py's module docstring.
 - Do not give speech_summary.py access to the profile, style, preferences, or the
   conversation — it is a bare llm_raw call on the reply text and must stay one. Same reason
   as above: it would be a second personalization channel, and one that differs between arms

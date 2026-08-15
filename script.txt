@@ -188,8 +188,18 @@ STEP 4 — START THE FRONTEND  (separate terminal)
     cd frontend
     npm run dev
 
-Open the URL it prints. Run the three tasks. Click Finish Task in the header
-after each one and have the participant complete the three-question survey.
+Open the URL it prints. Run the three tasks. After each one:
+
+  1. Hand the participant the paper worksheet and have them answer the three
+     questions for that task (personalized 1-5, accurate yes/partially/no,
+     trust 1-5). These are NOT in the app any more.
+  2. Click Finish Task in the header, then click it again when it reads
+     "Confirm?". It is two-step on purpose — a stray single click would log a
+     phantom task and renumber every task after it.
+
+Write the participant ID, the arch, and the task number on the worksheet. The
+app records only that the task ended, so the worksheet is joined to the
+transcript by hand afterwards.
 
 
 --------------------------------------------------------------------------------
@@ -225,10 +235,10 @@ To poke at the interface without a real participant profile:
 
     $env:JARVIS_ALLOW_EMPTY_PROFILE = "1"
 
-Use a throwaway participant ID like PILOT3. Do NOT test under a real ID: survey
-task numbers are counted from study_data\survey_responses.csv per participant
-and per arm, so leftover test rows under P01 would make that participant's first
-real survey log as task 2.
+Use a throwaway participant ID like PILOT3. Do NOT test under a real ID: task
+numbers are counted from study_data\task_events.csv per participant and per arm,
+so leftover test rows under P01 would make that participant's first real task
+log as task 2.
 
 Open a new terminal for the real session so the override variable is gone.
 
@@ -237,11 +247,11 @@ Open a new terminal for the real session so the override variable is gone.
 QUICK CHECKS DURING A SESSION
 --------------------------------------------------------------------------------
 
-The backend prints one line per submitted survey:
+The backend prints one line per finished task:
 
-    task survey recorded: participant=P01 arch=arch1 task=1
+    task complete recorded: participant=P01 arch=arch1 task=1
 
-That is the cheapest check that the labels are right. A survey landing as task 1
+That is the cheapest check that the labels are right. A task landing as task 1
 when you expected task 3 means the participant string or the arch string does
 not match the earlier rows.
 
@@ -249,9 +259,12 @@ Read a finished session back with:
 
     python summarize_session.py
 
-Do NOT hand-edit or delete rows from study_data\survey_responses.csv during the
+Do NOT hand-edit or delete rows from study_data\task_events.csv during the
 study. The next task number is counted from that file, so removing a row makes
-the following survey overwrite that task's slot. Fix it after data collection.
+the following task overwrite that task's slot. Fix it after data collection.
+
+study_data\survey_responses.csv is frozen pilot data from when the three
+questions were on screen. Nothing writes to it any more — leave it alone.
 
 
 --------------------------------------------------------------------------------
@@ -263,5 +276,5 @@ ONE-PAGE SUMMARY
   2. Reset + seed                          — once per participant
   3. inspect_prompt.py                     — confirm prose, not bullets
   4. Set condition + participant, start backend  — once per arm
-  5. npm run dev, run three tasks, survey after each
+  5. npm run dev, run three tasks; paper worksheet then Finish Task (x2) after each
   6. Switch condition, restart backend, reload tab — no reset in between

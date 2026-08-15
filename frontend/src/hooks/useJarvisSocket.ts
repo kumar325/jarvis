@@ -4,7 +4,6 @@ import type {
   DocumentEntry,
   Rating,
   StatCardData,
-  SurveyAnswers,
   TaskState,
   ToolCallCard,
   WireEvent,
@@ -36,8 +35,8 @@ type ServerMessage =
   | { type: "tool_result"; id: string; tool_name: string; preview: string }
   | { type: "tts_state"; enabled: boolean }
   | { type: "task_state"; completed_tasks: number; next_task: number; arch_complete: boolean }
-  | { type: "survey_recorded"; task_number: number; next_task: number; arch_complete: boolean }
-  | { type: "survey_error"; message: string }
+  | { type: "task_recorded"; task_number: number; next_task: number; arch_complete: boolean }
+  | { type: "task_error"; message: string }
   | { type: "error"; message: string };
 
 function timestamp() {
@@ -61,13 +60,14 @@ export function useJarvisSocket(ttsEnabled: boolean, onTtsStateChange: (enabled:
     nextTask: 1,
     archComplete: false,
   });
-  const [surveySubmitting, setSurveySubmitting] = useState(false);
-  const [surveyError, setSurveyError] = useState<string | null>(null);
-  // Set when the server confirms a survey reached disk; App consumes it to close the card
-  // and clears it via acknowledgeSurveyRecorded(). Unlike a rating, the card is NOT cleared
-  // optimistically — these three answers are the task-level measure and a dropped write
-  // can't be recovered from anywhere else.
-  const [surveyRecorded, setSurveyRecorded] = useState<{
+  const [taskSubmitting, setTaskSubmitting] = useState(false);
+  const [taskError, setTaskError] = useState<string | null>(null);
+  // Set when the server confirms a task boundary reached disk; App consumes it and clears
+  // it via acknowledgeTaskRecorded(). Unlike a rating this is NOT acknowledged
+  // optimistically — a dropped boundary shifts the numbering of every task after it, and
+  // with the survey answers now on paper this row is the only digital record that the
+  // task ended at all.
+  const [taskRecorded, setTaskRecorded] = useState<{
     taskNumber: number;
     archComplete: boolean;
   } | null>(null);
@@ -148,10 +148,10 @@ export function useJarvisSocket(ttsEnabled: boolean, onTtsStateChange: (enabled:
         // A reconnect starts a fresh server-side session, so the old pending response no
         // longer exists to be rated — holding the gate would lock the participant out.
         updatePendingRating(null);
-        // No survey_recorded/survey_error is coming over a closed socket. Unlike the
-        // rating gate this does NOT clear the card — the answers are still on screen and
-        // Submit re-enables, so the moderator can resend once the socket is back.
-        setSurveySubmitting(false);
+        // No task_recorded/task_error is coming over a closed socket, so drop the pending
+        // state — the button becomes clickable again and the moderator can resend once the
+        // socket is back. Nothing is lost by retrying: the server assigns the task number.
+        setTaskSubmitting(false);
         if (!cancelled) {
           reconnectTimer = setTimeout(connect, RECONNECT_DELAY_MS);
         }
@@ -219,22 +219,22 @@ export function useJarvisSocket(ttsEnabled: boolean, onTtsStateChange: (enabled:
               archComplete: msg.arch_complete,
             });
             break;
-          case "survey_recorded":
-            setSurveySubmitting(false);
-            setSurveyError(null);
+          case "task_recorded":
+            setTaskSubmitting(false);
+            setTaskError(null);
             setTaskState({
               completedTasks: msg.task_number,
               nextTask: msg.next_task,
               archComplete: msg.arch_complete,
             });
-            setSurveyRecorded({ taskNumber: msg.task_number, archComplete: msg.arch_complete });
+            setTaskRecorded({ taskNumber: msg.task_number, archComplete: msg.arch_complete });
             break;
-          case "survey_error":
+          case "task_error":
             // Deliberately not pushed to the wire log — a disk problem is the operator's,
-            // and the participant's transcript must not carry it. Re-enables Submit so the
-            // moderator can retry with the answers still filled in.
-            setSurveySubmitting(false);
-            setSurveyError(msg.message);
+            // and the participant's transcript must not carry it. Re-enables the button so
+            // the moderator can retry.
+            setTaskSubmitting(false);
+            setTaskError(msg.message);
             break;
           case "assistant_text":
             setBusy(false, "assistant_text");
@@ -333,27 +333,27 @@ export function useJarvisSocket(ttsEnabled: boolean, onTtsStateChange: (enabled:
     [updatePendingRating]
   );
 
-  const sendSurvey = useCallback((answers: SurveyAnswers) => {
+  const sendTaskComplete = useCallback(() => {
     const ws = wsRef.current;
     if (!ws || ws.readyState !== WebSocket.OPEN) {
-      setSurveyError("not connected — reconnecting, then submit again");
+      setTaskError("not connected — reconnecting, then try again");
       return;
     }
-    setSurveyError(null);
-    setSurveySubmitting(true);
+    setTaskError(null);
+    setTaskSubmitting(true);
     try {
       // No task number or participant id in the payload: the server assigns both from the
-      // survey log, so a refreshed browser can't restart the count at 1 and overwrite an
-      // earlier task's row.
-      ws.send(JSON.stringify({ type: "task_survey", ...answers }));
+      // task log, so a refreshed browser can't restart the count at 1 and log two
+      // different tasks as task 1.
+      ws.send(JSON.stringify({ type: "task_complete" }));
     } catch (err) {
-      console.error("failed to send survey", err);
-      setSurveySubmitting(false);
-      setSurveyError("could not send the survey — try again");
+      console.error("failed to send task complete", err);
+      setTaskSubmitting(false);
+      setTaskError("could not record the task — try again");
     }
   }, []);
 
-  const acknowledgeSurveyRecorded = useCallback(() => setSurveyRecorded(null), []);
+  const acknowledgeTaskRecorded = useCallback(() => setTaskRecorded(null), []);
 
   const sendTtsState = useCallback((enabled: boolean) => {
     const ws = wsRef.current;
@@ -372,11 +372,11 @@ export function useJarvisSocket(ttsEnabled: boolean, onTtsStateChange: (enabled:
     sessionId,
     condition,
     taskState,
-    surveySubmitting,
-    surveyError,
-    surveyRecorded,
-    sendSurvey,
-    acknowledgeSurveyRecorded,
+    taskSubmitting,
+    taskError,
+    taskRecorded,
+    sendTaskComplete,
+    acknowledgeTaskRecorded,
     vitals,
     directives,
     documents,

@@ -11,15 +11,10 @@ import { OrbVisualization } from "./components/center/OrbVisualization";
 import { CommandInput } from "./components/center/CommandInput";
 import { Conversation } from "./components/center/Conversation";
 import { RatingPrompt } from "./components/center/RatingPrompt";
-import { TaskSurvey } from "./components/center/TaskSurvey";
 import { ArchCompleteNotice } from "./components/center/ArchCompleteNotice";
 import type { InputMode } from "./lib/types";
 
 const TTS_ENABLED_STORAGE_KEY = "jarvis-tts-enabled";
-
-/** Matches backend/surveys.py's TASKS_PER_ARCH — used for the "Task N of 3" label only;
- * whether the arm is actually complete is decided server-side from the survey log. */
-const TASKS_PER_ARCH = 3;
 
 function App() {
   const [ttsEnabled, setTtsEnabled] = useState(() => {
@@ -40,15 +35,14 @@ function App() {
     wireEvents,
     agentBusy,
     pendingRatingId,
-    taskState,
-    surveySubmitting,
-    surveyError,
-    surveyRecorded,
+    taskSubmitting,
+    taskError,
+    taskRecorded,
     sendText,
     sendAudio,
     sendRating,
-    sendSurvey,
-    acknowledgeSurveyRecorded,
+    sendTaskComplete,
+    acknowledgeTaskRecorded,
     sendTtsState,
     isPlaying,
     getPlaybackLevel,
@@ -66,33 +60,29 @@ function App() {
   const inputDisabled = agentBusy || !connected || awaitingRating;
   const micDisabled = !recording && inputDisabled;
 
-  // The moderator has marked a task finished; the survey card is up.
-  const [surveyOpen, setSurveyOpen] = useState(false);
-  // The last task of this arm has been surveyed — shown instead of dropping straight back
+  // The last task of this arm has been recorded — shown instead of dropping straight back
   // to an input box that looks no different from before.
   const [archCompleteShown, setArchCompleteShown] = useState(false);
 
-  // The server confirmed the survey reached disk. Only then does the card come down; a
-  // failed write leaves it up with the answers intact (see useJarvisSocket's survey_error).
+  // The server confirmed the boundary reached disk. A failed write leaves the button
+  // clickable for a retry instead (see useJarvisSocket's task_error).
   useEffect(() => {
-    if (!surveyRecorded) return;
-    setSurveyOpen(false);
-    if (surveyRecorded.archComplete) setArchCompleteShown(true);
-    acknowledgeSurveyRecorded();
-  }, [surveyRecorded, acknowledgeSurveyRecorded]);
+    if (!taskRecorded) return;
+    if (taskRecorded.archComplete) setArchCompleteShown(true);
+    acknowledgeTaskRecorded();
+  }, [taskRecorded, acknowledgeTaskRecorded]);
 
-  // A live mic behind the survey card would keep recording something nobody can send, and
-  // would still be running when the chat view comes back.
+  // A mic left live across a task boundary would keep recording into the next task, and
+  // audio still playing belongs to the task that just ended.
   const handleFinishTask = useCallback(() => {
     if (recording) cancelRecording();
     if (isPlaying) stopPlayback();
-    setSurveyOpen(true);
-  }, [recording, cancelRecording, isPlaying, stopPlayback]);
+    sendTaskComplete();
+  }, [recording, cancelRecording, isPlaying, stopPlayback, sendTaskComplete]);
 
-  // Gated on the same conditions as the input, minus the survey itself: finishing a task
-  // mid-reply would survey a task whose last answer hasn't landed, and finishing while a
-  // response is owed a thumbs up/down would drop that rating — the per-response rating
-  // stays mandatory regardless of this feature.
+  // Gated on the same conditions as the input: finishing a task mid-reply would close a
+  // task whose last answer hasn't landed, and finishing while a response is owed a thumbs
+  // up/down would drop that rating — the per-response rating stays mandatory regardless.
   const finishTaskBlockedReason = !connected
     ? "Not connected"
     : agentBusy
@@ -132,9 +122,11 @@ function App() {
         controls={
           <>
             <FinishTaskButton
-              onClick={handleFinishTask}
-              disabled={surveyOpen || archCompleteShown || finishTaskBlockedReason !== null}
+              onConfirm={handleFinishTask}
+              disabled={archCompleteShown || finishTaskBlockedReason !== null}
               disabledReason={finishTaskBlockedReason}
+              pending={taskSubmitting}
+              error={taskError}
             />
             <MuteButton ttsEnabled={ttsEnabled} onToggle={handleTtsToggle} />
           </>
@@ -144,16 +136,7 @@ function App() {
         conversation={<Conversation events={wireEvents} thinking={agentBusy} />}
         rating={awaitingRating ? <RatingPrompt onRate={sendRating} /> : null}
         overlay={
-          surveyOpen ? (
-            <TaskSurvey
-              taskNumber={taskState.nextTask}
-              totalTasks={TASKS_PER_ARCH}
-              onSubmit={sendSurvey}
-              submitting={surveySubmitting}
-              error={surveyError}
-              onClose={() => setSurveyOpen(false)}
-            />
-          ) : archCompleteShown ? (
+          archCompleteShown ? (
             <ArchCompleteNotice
               condition={condition}
               onDismiss={() => setArchCompleteShown(false)}

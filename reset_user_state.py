@@ -111,9 +111,12 @@ SOURCES_DIRNAME = "sources"
 # holding the outgoing one's data, so every folder was attributed to the wrong person.
 CURRENT_PARTICIPANT_FILE = BACKUP_ROOT / ".current_participant"
 
-# Written by backend/ratings.py and backend/surveys.py. Read here only to recover who the
-# state on disk belongs to when the marker above is missing.
+# Written by backend/ratings.py and backend/tasks.py. Read here only to recover who the
+# state on disk belongs to when the marker above is missing. survey_responses.csv is frozen
+# pilot data — nothing appends to it any more, but it is still read so a reset run against
+# an old study_data/ can still name its archive.
 RATINGS_FILE = BACKUP_ROOT / "ratings.jsonl"
+TASK_EVENTS_FILE = BACKUP_ROOT / "task_events.csv"
 SURVEY_FILE = BACKUP_ROOT / "survey_responses.csv"
 
 # Where the FastAPI backend listens (frontend/src/hooks/useJarvisSocket.ts).
@@ -361,8 +364,9 @@ def logged_participant() -> tuple[str | None, str]:
     """Who the study's own logs say ran most recently, and which log said so.
 
     ratings.jsonl first: it gets a row on every thumbs up/down, so it exists even for an
-    arm abandoned before the first "Finish Task". survey_responses.csv is the fallback for
-    a session that was rated by nobody.
+    arm abandoned before the first "Finish Task". task_events.csv is the fallback for a
+    session that was rated by nobody, and survey_responses.csv behind it for a pilot
+    session logged before the on-screen survey moved to paper.
     """
     if RATINGS_FILE.is_file():
         try:
@@ -373,13 +377,15 @@ def logged_participant() -> tuple[str | None, str]:
                         return pid, RATINGS_FILE.name
         except Exception:
             pass
-    if SURVEY_FILE.is_file():
+    for csv_file in (TASK_EVENTS_FILE, SURVEY_FILE):
+        if not csv_file.is_file():
+            continue
         try:
-            rows = list(csv.DictReader(SURVEY_FILE.read_text(encoding="utf-8").splitlines()))
+            rows = list(csv.DictReader(csv_file.read_text(encoding="utf-8").splitlines()))
             for row in reversed(rows):
                 pid = (row.get("participant_id") or "").strip()
                 if pid:
-                    return pid, SURVEY_FILE.name
+                    return pid, csv_file.name
         except Exception:
             pass
     return None, ""
@@ -694,7 +700,7 @@ def main():
             "\n!! STATE IS WIPED AND NO PROFILE WAS STORED.\n"
             "   Arch 2's only personalization layer is empty, so a session started now\n"
             "   would be labeled arch2 while behaving like arch1 — and every rating and\n"
-            "   survey row would carry the wrong condition.\n"
+            "   task row would carry the wrong condition.\n"
             "   Fix the source (or the network, or GROQ_API_KEY) and re-run with one of\n"
             "   --profile-url / --profile-text-file / --profile-pdf.\n"
             f"   The backend refuses to start in this state when JARVIS_STUDY_CONDITION=arch2."

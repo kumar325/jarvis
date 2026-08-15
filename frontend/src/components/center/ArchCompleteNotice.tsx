@@ -4,9 +4,9 @@ interface Props {
   onDismiss: () => void;
 }
 
-/** Shown instead of the chat view after the last task's survey, so the moderator sees that
- * this arm is done rather than being dropped back at an input box that looks identical to
- * the one from thirty seconds ago.
+/** Shown instead of the chat view once the last task of the arm is recorded, so the
+ * moderator sees that this arm is done rather than being dropped back at an input box that
+ * looks identical to the one from thirty seconds ago.
  *
  * Dismissable rather than terminal: the session isn't over — the moderator still has to
  * reset state and relabel the backend, and may need the input box back in the meantime
@@ -22,8 +22,8 @@ export function ArchCompleteNotice({ condition, onDismiss }: Props) {
           Arch complete — ready for next phase
         </h2>
         <p className="mt-3 text-xs leading-relaxed text-[var(--text-muted)]">
-          All three task surveys are recorded. Reset participant state and relabel the
-          backend before starting the next arm.
+          All three tasks are recorded. Collect the paper worksheet, then reset participant
+          state and relabel the backend before starting the next arm.
         </p>
         <button
           onClick={onDismiss}

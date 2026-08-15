@@ -8,9 +8,9 @@ interface Props {
   conversation: ReactNode;
   rating: ReactNode;
   input: ReactNode;
-  /** Post-task survey or arch-complete notice. When set it takes over the orb's space and
-   * the rating/input row is dropped entirely — the participant can't send anything until
-   * the survey is answered, which is the same gate the rating prompt applies per response. */
+  /** The arch-complete notice. When set it takes over the orb's space and the rating/input
+   * row is dropped entirely — the participant can't send anything until it's dismissed,
+   * which is the same gate the rating prompt applies per response. */
   overlay?: ReactNode;
 }
 
