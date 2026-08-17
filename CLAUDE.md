@@ -9,7 +9,8 @@ personalization. Built as a research project, targeting a high tier ML conferenc
 ratings, and we characterize where it works and where weight-based RLHF would
 do better."
 
-**Repo:** private (see `git remote -v`)
+**Repo:** public, MIT licensed (see `git remote -v`). Participant data lives in
+`study_data/`, which is gitignored and has never been committed — keep it that way.
 **Local path:** the repo root — this file's directory
 **Python:** 3.14.6 at %LOCALAPPDATA%\Python\pythoncore-3.14-64\
 **Venv:** .venv — activate with .venv\Scripts\Activate.ps1

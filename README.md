@@ -14,6 +14,10 @@ It is also the instrument for a study, which is why it is built the way it is. T
 codebase serves both experimental conditions, logs its own sessions, and ships with an
 ablation harness for scoring changes offline.
 
+Open source under the [MIT License](LICENSE) — use it, fork it, build on it. If you are
+running your own study with it, the design notes in `CLAUDE.md` explain which decisions
+are load-bearing and why.
+
 ---
 
 ## Research context
@@ -167,3 +171,12 @@ Two details worth knowing, because both are easy to undo by accident:
 
 `CLAUDE.md` carries the deeper design rationale — what each decision protects against, and
 which ones must not be reversed without a study-design conversation.
+
+---
+
+## License
+
+MIT — see [LICENSE](LICENSE). Copyright (c) 2026 Karan Kumar.
+
+The license covers the code. It does not cover the study's participant data, none of which
+is in this repository.
