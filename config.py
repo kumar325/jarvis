@@ -112,6 +112,8 @@ WHISPER_PROMPT = (
 )
 
 # Agent
+# Measured at 5 as well: no accuracy gain (6 of 10 correct either way) and the agent
+# wandered into extra searches, so mean latency went 6.0s -> 7.9s. Left at 3.
 MAX_TOOL_TURNS = 3
 
 # Per-call timeout (seconds) for every ChatGroq client. Bounds a single HTTP
