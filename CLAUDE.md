@@ -303,6 +303,30 @@ The mute/unmute confirmations ("Voice output off — ...") are deliberately not 
 through it: they are fixed short strings, intercepted before `ask_jarvis()`, and spending
 an LLM call on one would be silly.
 
+## Speech normalization (voice.normalize_for_speech)
+
+SAPI5 says "&" as "ampersand", reads `2004-2008` as a subtraction or digit-by-digit, and
+reads stray markdown punctuation aloud. Two layers handle this and both are needed:
+
+- The **prompt** (`system_prompt.py` RESPONSE FORMAT + PRONUNCIATION, and the matching
+  bullet in `speech_summary.py`) keeps the *displayed* transcript clean. That matters
+  because the participant rates the text they can read.
+- **`normalize_for_speech()`** is the guarantee, applied inside `speak()` and
+  `speak_to_bytes()` — the one choke point both the CLI and the browser pass through.
+
+**It is audio-only.** It runs after `register_exchange()` and after the text has gone to
+the UI, so what is rendered, stored, and logged to ratings.jsonl is untouched. Don't move
+the call upstream into `ask_jarvis()` or the WebSocket handler — that would rewrite the
+answer the participant is rating.
+
+It is deterministic, offline, and arm-blind (no LLM, no profile, no condition), so it can't
+become a second personalization channel or cost a turn. It never raises: any failure prints
+a `[voice]` line and speaks the raw text, which is the old behavior.
+
+Prompt-side number handling is deliberately narrow — digits stay digits (`62`, `2004`,
+`3:30 pm` are all said correctly), and only hyphen-joined pairs are rewritten to "3 to 2".
+Telling the model to spell numbers as words would put "two thousand four" in the transcript.
+
 ---
 
 ## Running the project

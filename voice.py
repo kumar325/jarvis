@@ -88,7 +88,108 @@ def transcribe(path):
     return text
 
 
+def _heading_or_bullet_to_sentence(line: str) -> str:
+    """Strip a leading markdown marker and make what's left end like a sentence.
+
+    Removing the marker alone is not enough: "Breakfast" and "Eggs and toast" as bare
+    lines run together into "Breakfast Eggs and toast" with no pause, because the engine
+    breaks on punctuation, not on newlines.
+    """
+    stripped = re.sub(r"^\s*(?:>+\s*)?(?:#{1,6}\s*|[-*+•]\s+|\d{1,2}[.)]\s+)", "", line)
+    stripped = re.sub(r"\s*#*\s*$", "", stripped).strip()
+    if stripped and stripped[-1] not in ".!?,:;":
+        stripped += "."
+    return stripped
+
+
+def _money(match: re.Match) -> str:
+    amount, magnitude = match.group(1), match.group(2)
+    return f"{amount} {magnitude} dollars" if magnitude else f"{amount} dollars"
+
+
+def normalize_for_speech(text: str) -> str:
+    """Rewrite a reply into something the speech engine says correctly.
+
+    SAPI5 reads symbols literally ("&" as "ampersand"), spells hyphen-joined numbers out
+    digit by digit or reads the hyphen as "minus", and reads stray markdown punctuation
+    aloud. The system prompt asks the model to avoid all of that, but a prompt is a
+    request — this is the guarantee. Both layers earn their place: the prompt keeps the
+    *displayed* transcript clean, this keeps the *audio* clean when the model ignores it.
+
+    AUDIO ONLY. Called inside speak()/speak_to_bytes() and nowhere else, so the string
+    the UI renders, register_exchange() stores and ratings.jsonl logs is untouched — the
+    participant still rates the answer they can read. It is also deterministic, arm-blind
+    and offline: no LLM call, no condition, no profile, so it cannot become a second
+    personalization channel and cannot cost a turn.
+
+    Never raises. On any regex or unicode surprise it returns the input unchanged, which
+    is exactly the old behavior.
+    """
+    try:
+        s = text or ""
+
+        # Links and addresses first, before symbol substitution — otherwise a "&" or "%"
+        # inside a query string would be spoken as a word.
+        s = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", s)              # [text](url) -> text
+        s = re.sub(r"https?://(?:www\.)?([^\s/)>\]]+)\S*", r"\1", s)  # url -> bare domain
+        s = re.sub(r"\bwww\.([^\s/)>\]]+)\S*", r"\1", s)
+        s = re.sub(r"([\w.+-]+)@([\w.-]+\.\w+)", r"\1 at \2", s)
+
+        # Markdown structure.
+        s = re.sub(r"```[\s\S]*?```", " ", s)                        # fenced code blocks
+        s = s.replace("`", "")
+        lines = []
+        for line in s.splitlines():
+            if re.fullmatch(r"\s*\|?[\s:|+-]{3,}\|?\s*", line):      # table rule row
+                continue
+            # Strip the outer pipes before the inner ones become commas, or every table
+            # row is spoken starting with a stray "comma".
+            line = re.sub(r"^\s*\|\s*|\s*\|\s*$", "", line)
+            lines.append(_heading_or_bullet_to_sentence(line.replace("|", ", ")))
+        s = "\n".join(lines)
+        s = s.replace("*", "")
+        s = s.replace("_", " ")                                      # snake_case -> words
+
+        # Numbers. Ranges and scores before anything else touches the hyphen.
+        s = re.sub(r"(\d)\s*[-–—]\s*(?=\d)", r"\1 to ", s)
+        s = re.sub(r"#\s*(?=\d)", "number ", s)
+        s = re.sub(r"\$\s*([\d,]+(?:\.\d+)?)\s*(million|billion|trillion)?",
+                   _money, s, flags=re.IGNORECASE)
+
+        # Symbols.
+        s = s.replace("%", " percent")
+        s = re.sub(r"°\s*F\b", " degrees Fahrenheit", s)
+        s = re.sub(r"°\s*C\b", " degrees Celsius", s)
+        s = s.replace("°", " degrees")
+        s = s.replace("&", " and ")
+        s = s.replace("+", " plus ")
+        s = s.replace("=", " equals ")
+        # "about ~20" would otherwise become "about about 20".
+        s = re.sub(r"\b(about|around|approximately)\s+~\s*(?=\d)", r"\1 ", s, flags=re.IGNORECASE)
+        s = re.sub(r"~\s*(?=\d)", "about ", s)
+        s = re.sub(r"\band\s*/\s*or\b", "and or", s, flags=re.IGNORECASE)  # not "and or or"
+        s = re.sub(r"(?<=[A-Za-z])\s*/\s*(?=[A-Za-z])", " or ", s)   # he/she, on/off
+        s = s.replace("$", " dollars")                               # any stray $ left
+
+        # Abbreviations the engine spells out letter by letter.
+        s = re.sub(r"\be\.g\.,?", "for example", s, flags=re.IGNORECASE)
+        s = re.sub(r"\bi\.e\.,?", "that is", s, flags=re.IGNORECASE)
+        s = re.sub(r"\bvs\.?(?=\s|$)", "versus", s, flags=re.IGNORECASE)
+        s = re.sub(r"\betc\.", "et cetera", s, flags=re.IGNORECASE)
+        s = re.sub(r"\bapprox\.", "approximately", s, flags=re.IGNORECASE)
+        s = re.sub(r"\bw/(?=\s)", "with", s, flags=re.IGNORECASE)
+
+        s = re.sub(r"[ \t]+", " ", s)
+        s = re.sub(r"\n{2,}", "\n", s).strip()
+        # An empty result means a substitution ate the whole reply; speak the original.
+        return s or (text or "")
+    except Exception as e:
+        print(f"[voice] speech normalization failed, speaking raw text: {e}", flush=True)
+        return text or ""
+
+
 def speak(text):
+    text = normalize_for_speech(text)
     engine = pyttsx3.init()
     voices = engine.getProperty('voices')
     engine.setProperty('voice', voices[VOICE_INDEX].id)
@@ -102,6 +203,7 @@ def speak(text):
 def speak_to_bytes(text):
     """Same voice/rate as speak(), but rendered to a wav file and returned as bytes
     instead of played through the OS speakers — for the browser frontend's playback."""
+    text = normalize_for_speech(text)
     engine = pyttsx3.init()
     voices = engine.getProperty('voices')
     engine.setProperty('voice', voices[VOICE_INDEX].id)
