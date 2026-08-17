@@ -102,6 +102,24 @@ def _heading_or_bullet_to_sentence(line: str) -> str:
     return stripped
 
 
+_ONES = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"]
+
+
+def _spoken_year(match: re.Match) -> str:
+    """Say 2004 as "two thousand four", not "two zero zero four".
+
+    Measured on this voice (VOICE_INDEX, SPEECH_RATE) by comparing clip durations against
+    written-out readings: 62, 150, 1995, 2026, 3:30 and 12 are all spoken correctly, but
+    2004 and 2008 come out digit by digit. It is the X00Y shape that defeats the number
+    parser — two zero middle digits leave it with no decade to read — so only that shape
+    is rewritten. Everything else is left alone precisely because it is already right.
+
+    Audio only, like the rest of this module: the participant still reads "2004".
+    """
+    head = "two thousand" if match.group(1) == "20" else "nineteen oh"
+    return f"{head} {_ONES[int(match.group(2))]}"
+
+
 def _money(match: re.Match) -> str:
     amount, magnitude = match.group(1), match.group(2)
     return f"{amount} {magnitude} dollars" if magnitude else f"{amount} dollars"
@@ -152,6 +170,8 @@ def normalize_for_speech(text: str) -> str:
 
         # Numbers. Ranges and scores before anything else touches the hyphen.
         s = re.sub(r"(\d)\s*[-–—]\s*(?=\d)", r"\1 to ", s)
+        # After the range rule, so both halves of "2004-2008" are converted.
+        s = re.sub(r"\b(19|20)0([1-9])\b", _spoken_year, s)
         s = re.sub(r"#\s*(?=\d)", "number ", s)
         s = re.sub(r"\$\s*([\d,]+(?:\.\d+)?)\s*(million|billion|trillion)?",
                    _money, s, flags=re.IGNORECASE)

@@ -65,7 +65,7 @@ def build_system_message(current_query):
         "'that is' not 'i.e.', 'versus' not 'vs.', 'approximately' not '~'. Never join two "
         "numbers with a hyphen — it is read as 'minus' or swallowed entirely. Write ranges "
         "and scores with words: 'from 2004 to 2008', 'beat them 3 to 2', '20 to 30 minutes'. "
-        "Ordinary numbers are fine as digits (62, 2004, 3:30 pm) and should stay that way, "
+        "Ordinary numbers are fine as digits (62, 1995, 3:30 pm) and should stay that way, "
         "but avoid digit strings that are not quantities — phone numbers, version numbers, "
         "ID codes and reference numbers get read out one digit at a time, so leave them out "
         "or describe them in words. Never include URLs, file paths, or email addresses in a "

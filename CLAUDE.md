@@ -329,9 +329,22 @@ It is deterministic, offline, and arm-blind (no LLM, no profile, no condition), 
 become a second personalization channel or cost a turn. It never raises: any failure prints
 a `[voice]` line and speaks the raw text, which is the old behavior.
 
-Prompt-side number handling is deliberately narrow — digits stay digits (`62`, `2004`,
-`3:30 pm` are all said correctly), and only hyphen-joined pairs are rewritten to "3 to 2".
-Telling the model to spell numbers as words would put "two thousand four" in the transcript.
+Prompt-side number handling is deliberately narrow: digits stay digits, and the model is
+never asked to spell a number out, since that would put "two thousand four" in the
+transcript the participant reads and rates. Pronunciation is fixed in the audio instead.
+
+What this voice actually mispronounces was measured, not assumed, by comparing clip
+durations against written-out readings (`speak()` is deterministic, so the same string
+always yields the same wav). Findings, which are worth not re-litigating:
+
+- `&`, `%`, `°F`, `$20 million` and `3-2` are **already spoken correctly** by SAPI5. Those
+  substitutions are harmless no-ops kept for other engines and for text the model writes
+  oddly — they are not what was broken.
+- `2004` and `2008` are read **digit by digit**. It is the `X00Y` shape that defeats the
+  number parser; `1995`, `2026`, `62`, `150`, `3:30` and `12` are all correct. Hence
+  `_spoken_year()` rewrites only that shape, and only for the speaker.
+- The largest real win is dropping URLs: `See https://www.espn.com/soccer/report?a=1&b=2`
+  takes 9.8 seconds to speak and 2.6 after.
 
 ---
 
