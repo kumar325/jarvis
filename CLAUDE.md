@@ -28,8 +28,14 @@ sounddevice (and every other dependency). Activate, or call
 - **Web search:** Tavily (advanced depth, max_results=5, content slice 1500 chars)
 - **Embeddings:** sentence-transformers all-MiniLM-L6-v2
 - **URL scraping:** requests + BeautifulSoup
-- **PDF extraction:** pypdf (profile seeding only — `--profile-pdf`). There is no
-  requirements.txt in this repo; install it into the venv directly if a fresh clone needs it.
+- **PDF extraction:** pypdf (profile seeding only — `--profile-pdf`)
+
+Dependencies are pinned in `requirements.txt` (`pip install -r requirements.txt`, venv
+activated). It lists direct imports only, pinned to the versions running on the study
+machine. `pandas` and `uptrain` are listed but commented out: they are imported solely by
+`eval/run_eval.py`, are not installed in this venv, and have no version known to work on
+Python 3.14 here — so the eval harness fails at import today while the assistant, the
+backend and the whole study path run fine without them.
 - **Eval:** UpTrain with groq/llama-3.3-70b-versatile as judge LLM
 - **SSL fix:** truststore.inject_into_ssl() at startup (corporate cert issue on this machine)
 
