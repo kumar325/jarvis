@@ -160,15 +160,6 @@ inspect_prompt.py      dump the assembled prompt
 eval/                  ablation harness and test queries
 ```
 
-Two details worth knowing, because both are easy to undo by accident:
-
-- **Long replies are summarized for the speaker only.** A four-minute answer is unlistenable
-  and unskimmable, so the screen keeps the full text and the speaker gets roughly five
-  sentences. What is displayed, stored, and rated is always the complete reply.
-- **Speech output is normalized before synthesis, not before display.** The engine reads
-  `&` as "ampersand" and `2004-2008` as a subtraction, so symbols become words on the way to
-  the speaker. The transcript the participant reads and rates is untouched.
-
 `CLAUDE.md` carries the deeper design rationale — what each decision protects against, and
 which ones must not be reversed without a study-design conversation.
 
