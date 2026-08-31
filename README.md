@@ -124,16 +124,6 @@ start if it is told to run Arch 2 with an empty profile — that combination wou
 serve the baseline while stamping `arch2` on every logged row, which nothing downstream
 could detect afterwards.
 
-**Offline evaluation.** Scores responses across ablations (full, no-profile, no-web-search)
-using UpTrain:
-
-```powershell
-python eval/run_eval.py --ablations full,no_memory --limit 3
-```
-
-This is the one part that needs dependencies not pinned in `requirements.txt`; see the
-comments at the bottom of that file.
-
 ---
 
 ## How it fits together
