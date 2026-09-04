@@ -1,10 +1,10 @@
-"""Reset all personalization state so Jarvis is a blank slate for a new participant.
+"""Reset all personalization state so Himavat is a blank slate for a new participant.
 
 Clears every piece of on-disk state that carries between sessions:
   preferences.json  — rated preference pairs + cached query embeddings
   user_profile.json — URL-derived summary + remembered facts
   user_style.json   — utterance buffer + cached style summary
-  jarvis_sandbox/   — files the previous participant had Jarvis create
+  jarvis_sandbox/   — files the previous participant had Himavat create
   input.wav         — last recorded utterance
 
 The three JSON files cover personalization layers 2-5 of the system prompt
@@ -56,7 +56,7 @@ Usage:
     python reset_user_state.py --participant P03 --profile-url https://... \
                                --profile-text-file bio.txt -y
 
-Stdlib only and no imports from the Jarvis modules, so it runs without the venv
+Stdlib only and no imports from the Himavat modules, so it runs without the venv
 active and without loading the embedder or hitting the Groq API.
 
 The three --profile-* flags are the ONE exception. They import user_profile (and
@@ -707,7 +707,7 @@ def main():
         )
         return 2
 
-    print("\nReset complete. Jarvis now has:")
+    print("\nReset complete. Himavat now has:")
     print_state(include_sandbox)
     if args.keep_sandbox:
         print("\nSandbox left untouched (--keep-sandbox) - the next participant can read those files.")

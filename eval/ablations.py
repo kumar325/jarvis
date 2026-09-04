@@ -1,4 +1,4 @@
-"""Instrumentation for evaluating Jarvis: tool-call tracing + feature ablations.
+"""Instrumentation for evaluating Himavat: tool-call tracing + feature ablations.
 
 Each ablation turns off one personalization/retrieval component by patching the
 functions `system_prompt.build_system_message` reads from, so we can measure
@@ -43,7 +43,7 @@ ABLATION_PATCHES = {
 
 
 def reset_conversation():
-    """Clear Jarvis's in-memory conversation so each test query starts fresh."""
+    """Clear Himavat's in-memory conversation so each test query starts fresh."""
     agent_loop.conversation.clear()
 
 
@@ -140,14 +140,14 @@ def _keywords(text: str) -> set:
     return {w for w in re.findall(r"[a-zA-Z']+", (text or "").lower()) if len(w) > 3 and w not in _STOPWORDS}
 
 
-# Generic tone words ("short", "casual") are useless as markers here: Jarvis's baseline
+# Generic tone words ("short", "casual") are useless as markers here: Himavat's baseline
 # system prompt ALREADY mandates short, casual replies regardless of style mirroring, so
 # almost every response would match and the check would never say False. Two exceptions
 # that are NOT confounded with the baseline persona (which is casual/short by default):
 # a response actually being technical or formal is only explained by the style guide
 # asking for it. For everything else, match on the literal quoted phrases the style
 # analysis calls out (e.g. "sorry", "what's...") — those are specific to this user's
-# style, not to Jarvis's default persona, so a literal match is real evidence of mirroring.
+# style, not to Himavat's default persona, so a literal match is real evidence of mirroring.
 _STYLE_TONE_MARKERS = {
     "technical": lambda r: bool(re.search(r"\b(implementation|architecture|algorithm|protocol)\b", r.lower())),
     "formal": lambda r: r[:1].isupper() and r.rstrip().endswith("."),
@@ -164,7 +164,7 @@ def check_personalization_used(response: str, facts: list, profile_summary: str,
     """Whether a personalization signal that was LOADED into the prompt actually left a
     detectable trace in the response — distinguishes 'feature fired' from 'feature sat idle'.
     Facts/profile/examples: keyword overlap with the response. Style: literal quoted-phrase
-    match plus a couple of tone markers that aren't already true of Jarvis's default persona.
+    match plus a couple of tone markers that aren't already true of Himavat's default persona.
     """
     resp_kw = _keywords(response)
     if resp_kw:

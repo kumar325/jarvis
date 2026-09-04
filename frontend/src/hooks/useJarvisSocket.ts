@@ -279,7 +279,7 @@ export function useJarvisSocket(ttsEnabled: boolean, onTtsStateChange: (enabled:
       if (!ws || ws.readyState !== WebSocket.OPEN || agentBusyRef.current) return;
       if (pendingRatingIdRef.current) return;
       try {
-        // A new request always interrupts whatever Jarvis is currently speaking —
+        // A new request always interrupts whatever Himavat is currently speaking —
         // never let two replies play at once.
         stopPlayback();
         // A mute/unmute command is intercepted server-side before ask_jarvis() — it's

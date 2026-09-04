@@ -67,7 +67,7 @@ from .ws_messages import (
     VitalsUpdateMessage,
 )
 
-app = FastAPI(title="Jarvis HUD backend")
+app = FastAPI(title="Himavat HUD backend")
 
 # Vite picks the next free port when 5173 is taken, so both are allowed. (Only the REST
 # endpoints below are affected — browsers don't apply CORS to WebSocket handshakes.)
@@ -91,7 +91,7 @@ ARCH_POSITION = tasks.arch_position(PARTICIPANT_ID, STUDY_CONDITION)
 # Printed to the operator's terminal (never to the participant's screen) so a mislabeled
 # session is caught before it's run rather than found at analysis time.
 print(
-    f"[jarvis] study condition={STUDY_CONDITION} participant={PARTICIPANT_ID} "
+    f"[himavat] study condition={STUDY_CONDITION} participant={PARTICIPANT_ID} "
     f"arm={ARCH_POSITION} of 2 "
     f"-> {ratings.RATINGS_PATH.relative_to(Path(__file__).resolve().parent.parent)}",
     flush=True,
@@ -107,7 +107,7 @@ def log_operator(message: str):
     ask_jarvis is still running. Study-data capture failing is an operator problem — it
     must not change what the participant sees or can do.
     """
-    print(f"[jarvis] {message}", flush=True)
+    print(f"[himavat] {message}", flush=True)
 
 
 # Escape hatch for testing the arch2 wiring without a real participant's URL. Deliberately

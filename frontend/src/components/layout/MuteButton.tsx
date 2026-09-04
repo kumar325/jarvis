@@ -30,7 +30,7 @@ function SpeakerIcon({ muted }: { muted: boolean }) {
   );
 }
 
-/** Session-scoped mute for Jarvis's voice. Muting is applied server-side too, so a muted
+/** Session-scoped mute for Himavat's voice. Muting is applied server-side too, so a muted
  * session doesn't spend time synthesizing audio the browser would discard. */
 export function MuteButton({ ttsEnabled, onToggle }: Props) {
   return (

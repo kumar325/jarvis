@@ -1,6 +1,6 @@
 """Shorten a long reply into something worth listening to.
 
-Jarvis spoke every reply in full, however long. Reading a 400-word answer aloud at
+Himavat spoke every reply in full, however long. Reading a 400-word answer aloud at
 SPEECH_RATE takes over two minutes, and a participant cannot skim it, scroll back, or
 skip ahead the way they can with the text on screen. So the screen keeps the full
 answer and the speaker gets a summary of it.

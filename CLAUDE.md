@@ -1,7 +1,7 @@
-# Jarvis — Claude Code Context
+# Himavat — Claude Code Context
 
 ## Project overview
-Jarvis is a modular Python voice assistant with in-context RLHF and multi-layer
+Himavat is a modular Python voice assistant with in-context RLHF and multi-layer
 personalization. Built as a research project, targeting a high tier ML conference.
 
 **Paper claim (working):**
@@ -270,7 +270,7 @@ delta, and expect the query set itself to need revisiting.
 - MAX_TOOL_TURNS=3 with forced final-answer message at cap
 - Empty response → returns honest "couldn't find a clear answer" message
 - Malformed tool calls → graceful fallback, doesn't crash
-- Tool trace printed as dimmed ANSI "Jarvis (thinking):" with 120-char truncation
+- Tool trace printed as dimmed ANSI "Himavat (thinking):" with 120-char truncation
 - verify_search_result uses a separate llm_raw (no tools) for cross-source contradiction detection
 
 ---
@@ -354,7 +354,7 @@ always yields the same wav). Findings, which are worth not re-litigating:
 # Activate venv
 .venv\Scripts\Activate.ps1
 
-# Run Jarvis
+# Run Himavat
 python jarvis.py
 
 # Run eval (full)
@@ -387,7 +387,7 @@ $env:JARVIS_STUDY_CONDITION = "arch2"
 # Frontend (separate terminal)
 cd frontend; npm run dev
 ```
-The backend prints `[jarvis] study condition=… participant=…` at startup — check it
+The backend prints `[himavat] study condition=… participant=…` at startup — check it
 before the participant sits down. Unset values fall back to `unspecified` /
 `unassigned` rather than guessing, so an unlabeled session is obvious in the log.
 
@@ -435,7 +435,7 @@ the startup line (`arm=2 of 2`), so a wrong value is visible before the particip
 down. Caveat: an arm abandoned before its first "Finish Task" leaves no rows, so the next
 arm would also read as position 1.
 
-`--profile-url` is the one code path in reset_user_state.py that imports a Jarvis module
+`--profile-url` is the one code path in reset_user_state.py that imports a Himavat module
 (and therefore needs the venv active, the network, and a Groq key). The import is local to
 `seed_profile()` so every other path — including `--status` — stays stdlib-only. Don't
 hoist it.

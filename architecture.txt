@@ -7,9 +7,9 @@ same tools (web search, file sandbox), same voice interface — with the cold-st
  assistant. Represents a competent off-the-shelf AI assistant that happens to know nothing 
  about the user.
 
-Arch 2 — Jarvis with Cold-Start Personalization
-Jarvis with user cold-start active. Before the session, the participant provides a profile pdf
-collected in the screener survey. Jarvis summarizes in 10 sentences into a profile and injects 
+Arch 2 — Himavat with Cold-Start Personalization
+Himavat with user cold-start active. Before the session, the participant provides a profile pdf
+collected in the screener survey. Himavat summarizes in 10 sentences into a profile and injects 
 that summary into the system prompt. Represents the personalized architecture being evaluated.
 
 Both architectures run the same model, the same base system prompt, and the same tools. The only 

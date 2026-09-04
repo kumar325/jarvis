@@ -1,5 +1,5 @@
 ================================================================================
-JARVIS STUDY — SETUP RUNBOOK (read aloud)
+HIMAVAT STUDY — SETUP RUNBOOK (read aloud)
 Reset a participant, seed their profile, and run both arms.
 ================================================================================
 
@@ -89,7 +89,7 @@ STEP 1 — RESET AND SEED  (ONCE per participant, NOT once per arm)
 --------------------------------------------------------------------------------
 
 Activate the virtual environment first. This step is the one place that imports
-Jarvis modules and calls Groq, so it needs the venv, the network, and a key.
+Himavat modules and calls Groq, so it needs the venv, the network, and a key.
 
     .venv\Scripts\Activate.ps1
 
@@ -170,7 +170,7 @@ A variant spelling means reconciling the data by hand afterwards.
 
 Read the startup line out loud and check it:
 
-    [jarvis] study condition=arch1 participant=P01 arm=1 of 2
+    [himavat] study condition=arch1 participant=P01 arm=1 of 2
 
 Under arch1 you should also see:
 

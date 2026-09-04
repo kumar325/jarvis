@@ -1,0 +1,97 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 232" width="1400" height="232" role="img" aria-label="Project scope: five phases in sequence. Design Himavat, Prototype Himavat, Productize, and Study Protocol are complete. Run the Study is in progress.">
+
+  <!-- ==========================================================
+       STYLE BLOCK - edit these to match the poster exactly.
+       #3D1F5C ........... section-header purple, reserved for the
+                           in-progress border, tag, numeral and its dashed connector
+       #000000 ........... completed box border + completed connectors
+       #2A1840 ........... title text
+       #6E6479 ........... subtitle text
+       #A296B4 ........... phase numerals and check marks
+       #F6F2FA ........... in-progress box fill
+       rx="9" ............ corner radius
+       font-family ....... swap for the poster's font
+       ========================================================== -->
+  <style>
+    .card    { fill:#FFFFFF; stroke:#000000; stroke-width:2 }
+    .card-now{ fill:#F6F2FA; stroke:#3D1F5C; stroke-width:2.4; stroke-dasharray:8 5 }
+    .num     { font-family:"Helvetica Neue",Helvetica,Arial,sans-serif; font-size:12.5px; font-weight:700; letter-spacing:1.4px; fill:#A296B4 }
+    .num-now { font-family:"Helvetica Neue",Helvetica,Arial,sans-serif; font-size:12.5px; font-weight:700; letter-spacing:1.4px; fill:#3D1F5C }
+    .ttl     { font-family:"Helvetica Neue",Helvetica,Arial,sans-serif; font-size:20px;   font-weight:700; fill:#2A1840 }
+    .ttl-now { font-family:"Helvetica Neue",Helvetica,Arial,sans-serif; font-size:20px;   font-weight:700; fill:#3D1F5C }
+    .sub     { font-family:"Helvetica Neue",Helvetica,Arial,sans-serif; font-size:14px;   font-weight:400; fill:#6E6479 }
+    .sub-now { font-family:"Helvetica Neue",Helvetica,Arial,sans-serif; font-size:14px;   font-weight:400; fill:#5B4A70 }
+    .tag     { font-family:"Helvetica Neue",Helvetica,Arial,sans-serif; font-size:12px;   font-weight:700; letter-spacing:1.1px; fill:#FFFFFF }
+    .link    { fill:none; stroke:#000000; stroke-width:2 }
+    .link-todo{ fill:none; stroke:#3D1F5C; stroke-width:2; stroke-dasharray:7 5 }
+    .tick    { fill:none; stroke:#A296B4; stroke-width:2.2; stroke-linecap:round; stroke-linejoin:round }
+  </style>
+
+  <defs>
+    <filter id="sh" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="2" stdDeviation="2.5" flood-color="#3D1F5C" flood-opacity="0.13"/>
+    </filter>
+    <filter id="sh-now" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="3" stdDeviation="3.5" flood-color="#3D1F5C" flood-opacity="0.22"/>
+    </filter>
+    <marker id="ptk" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0.5 L10,5 L0,9.5 z" fill="#000000"/>
+    </marker>
+    <marker id="pt" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0.5 L10,5 L0,9.5 z" fill="#3D1F5C"/>
+    </marker>
+  </defs>
+
+  <!-- 01 -->
+  <rect x="37" y="76" width="210" height="124" rx="9" class="card" filter="url(#sh)"/>
+  <text x="59" y="114" class="num">01</text>
+  <path d="M215,110 L220,116 L230,104" class="tick"/>
+  <text x="59" y="150" class="ttl">Design Himavat</text>
+  <text x="59" y="178" class="sub">Scope and architecture</text>
+
+  <circle cx="253" cy="138" r="2.5" fill="#000000"/>
+  <path d="M253,138 Q275,131 297,138" class="link" marker-end="url(#ptk)"/>
+
+  <!-- 02 -->
+  <rect x="303" y="76" width="228" height="124" rx="9" class="card" filter="url(#sh)"/>
+  <text x="325" y="114" class="num">02</text>
+  <path d="M499,110 L504,116 L514,104" class="tick"/>
+  <text x="325" y="150" class="ttl">Prototype Himavat</text>
+  <text x="325" y="178" class="sub">A working assistant</text>
+
+  <circle cx="537" cy="138" r="2.5" fill="#000000"/>
+  <path d="M537,138 Q559,131 581,138" class="link" marker-end="url(#ptk)"/>
+
+  <!-- 03 -->
+  <rect x="587" y="76" width="218" height="124" rx="9" class="card" filter="url(#sh)"/>
+  <text x="609" y="114" class="num">03</text>
+  <path d="M773,110 L778,116 L788,104" class="tick"/>
+  <text x="609" y="150" class="ttl">Productize</text>
+  <text x="609" y="178" class="sub">Harden and find a niche</text>
+
+  <circle cx="811" cy="138" r="2.5" fill="#000000"/>
+  <path d="M811,138 Q833,131 855,138" class="link" marker-end="url(#ptk)"/>
+
+  <!-- 04 -->
+  <rect x="861" y="76" width="204" height="124" rx="9" class="card" filter="url(#sh)"/>
+  <text x="883" y="114" class="num">04</text>
+  <path d="M1033,110 L1038,116 L1048,104" class="tick"/>
+  <text x="883" y="150" class="ttl">Study Protocol</text>
+  <text x="883" y="178" class="sub">Tasks, arms, measures</text>
+
+  <circle cx="1071" cy="138" r="2.5" fill="#3D1F5C"/>
+  <path d="M1071,138 Q1093,131 1115,138" class="link-todo" marker-end="url(#pt)"/>
+
+  <!-- 05 - in progress -->
+  <rect x="1121" y="28" width="242" height="172" rx="9" class="card-now" filter="url(#sh-now)"/>
+
+  <rect x="1143" y="50" width="152" height="32" rx="16" fill="#3D1F5C"/>
+  <path d="M1158,58 L1170,58 M1158,74 L1170,74 M1159,58 L1169,74 M1169,58 L1159,74"
+        fill="none" stroke="#FFFFFF" stroke-width="1.9" stroke-linecap="round"/>
+  <text x="1180" y="71" class="tag">IN PROGRESS</text>
+
+  <text x="1143" y="114" class="num-now">05</text>
+  <text x="1143" y="150" class="ttl-now">Run the Study</text>
+  <text x="1143" y="178" class="sub-now">Sessions with participants</text>
+
+</svg>

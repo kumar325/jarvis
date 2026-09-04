@@ -1,4 +1,4 @@
-# Jarvis — Python dependencies
+# Himavat — Python dependencies
 #
 # Pinned to what is installed and working in .venv on the study machine
 # (Python 3.14.6). Direct imports only; transitive deps resolve themselves.

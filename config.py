@@ -17,7 +17,7 @@ load_dotenv()
 # launching:  $env:JARVIS_STUDY_CONDITION = "arch1"
 #
 # Anything other than "arch1" leaves the profile injected, so the baseline has to be asked
-# for explicitly — an unlabeled run is full Jarvis (which is what the CLI and the eval
+# for explicitly — an unlabeled run is full Himavat (which is what the CLI and the eval
 # harness want), never a silent baseline.
 STUDY_CONDITION = os.environ.get("JARVIS_STUDY_CONDITION", "unspecified")
 

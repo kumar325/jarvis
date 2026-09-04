@@ -31,7 +31,7 @@ def build_system_message(current_query):
     hour12 = now.hour % 12 or 12
     time_str = f"{hour12}:{now:%M %p}"
     base = (
-        "You are Jarvis, a helpful voice assistant. "
+        "You are Himavat, a helpful voice assistant. "
         f"Today's date is {today_full}, and the current time is {time_str}. Use this as the "
         "ground truth for what 'today', 'tomorrow', 'this week', and 'right now' mean — do not "
         "rely on your own sense of the current date or time. "

@@ -57,8 +57,8 @@ def verify_search_result(question: str, retrieved_data: str) -> str:
 @tool
 def learn_about_user(url: str) -> str:
     """Fetch a URL (the user's personal webpage, blog, GitHub profile, or social media link)
-    and learn about the user so Jarvis can personalize future responses. Returns a summary
-    of what was learned. Use ONLY when the user explicitly asks Jarvis to learn about them
+    and learn about the user so Himavat can personalize future responses. Returns a summary
+    of what was learned. Use ONLY when the user explicitly asks Himavat to learn about them
     from a URL — e.g., 'read my GitHub' or 'check this profile and learn about me'."""
     return learn_from_url(url)
 

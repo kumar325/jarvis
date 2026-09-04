@@ -1,4 +1,4 @@
-"""Evaluate Jarvis against a fixed set of test queries using UpTrain's EvalLLM.
+"""Evaluate Himavat against a fixed set of test queries using UpTrain's EvalLLM.
 
 Test queries are split into categories that each isolate one personalization feature:
   - profile: correct answer depends on knowing the user is vegetarian / works night shifts
@@ -69,7 +69,7 @@ def load_queries(path: Path, limit: int | None) -> list[dict]:
 
 
 def run_query(query: str) -> dict:
-    """Run one query through Jarvis and collect response + retrieved context + system state."""
+    """Run one query through Himavat and collect response + retrieved context + system state."""
     reset_conversation()
     with capture_tool_trace() as trace:
         response = ask_jarvis(query)
@@ -144,7 +144,7 @@ def main():
     queries = load_queries(Path(args.queries), args.limit)
 
     print(f"Running {len(queries)} queries x {len(ablation_names)} ablation configs = "
-          f"{len(queries) * len(ablation_names)} Jarvis calls...")
+          f"{len(queries) * len(ablation_names)} Himavat calls...")
 
     rows = []
     with preserve_file(PROFILE_FILE):

@@ -1,0 +1,101 @@
+I need an architecture diagram for this repo. Read CLAUDE.md and architecture.txt first,
+and open whatever source files you need after that. Please actually read rather than
+guess, because the parts of this system that matter aren't visible from the file tree.
+
+Orientation: Himavat looks like a Python voice assistant but it's really a research
+instrument. It's the apparatus for a within-subjects study on whether giving an LLM a
+cold-start profile of the user changes how people rate its answers. One repo serves both
+arms of the study, and the whole experimental treatment is a single gate in
+system_prompt.py. If a reader walks away from the diagram without understanding that,
+the diagram failed.
+
+How a turn actually flows, browser side, which is the path the study runs on. The React
+front end opens a websocket to the FastAPI backend, mic audio goes over as wav bytes,
+backend/audio.py hands it to Whisper small, the text goes into ask_jarvis(), which runs
+the LangChain agent loop against Groq (openai/gpt-oss-120b, capped at 3 tool turns), and
+a reply comes back.
+
+Then the reply forks, and this fork is worth drawing carefully. The text goes to the UI
+transcript, to register_exchange(), and to the ratings log completely untouched, because
+the participant rates the text they can read. The audio takes a different branch: if the
+reply is over 800 characters it gets shortened by speech_summary.py, then
+normalize_for_speech() fixes things SAPI5 mispronounces, then pyttsx3 renders wav bytes
+back to the browser. Everything in that second branch happens downstream of the rated
+text and never touches it. It's an invariant, not an implementation detail.
+
+There's also a CLI front end (jarvis.py, Enter to talk or t for text) that goes through
+voice.py into the same ask_jarvis(). Same core, different shell.
+
+Tools the agent can call: Tavily search plus verify_search_result, which uses a separate
+tool-less LLM client to check sources against each other, and sandboxed file tools with a
+two-step delete confirm. Show remember, forget and learn_about_user somewhere as
+deliberately unbound. They're still in the codebase and they still work, they're just not
+given to the agent, and the reason is the same reason the gate exists.
+
+The gate itself. system_prompt.py builds base instructions plus, optionally, a
+URL-derived profile summary. That summary is the only personalization layer in the
+system. config.profile_injection_enabled() decides: JARVIS_STUDY_CONDITION=arch2 injects
+it, arch1 doesn't, anything else (CLI, eval harness) injects it by default. Draw this as
+a real switch sitting on the prompt assembly path, sized and placed like it's the point,
+because it is.
+
+Three other signals get collected and never read back. style_tracker writes
+user_style.json on every web turn, preferences writes preferences.json on every thumbs
+up/down, and remembered facts aren't written at all on the web path. Draw those as arrows
+that go to disk and visibly stop there, with nothing returning to the prompt. backend/
+state.py does read all three, but only to build the /vitals counters, so if you show that
+read, make it obviously a different kind of edge than prompt injection.
+
+Study data, which I'd keep in its own region rather than mixed into the runtime flow:
+ratings.jsonl is the source of truth and carries participant_id, condition and
+arch_position. task_events.csv gets one row per Finish Task click, and the server derives
+the task number by counting existing rows for that participant and arch, so the client
+never sends it. survey_responses.csv is frozen pilot data that nothing appends to
+anymore. reset_user_state.py runs once per participant: wipe, archive the outgoing
+participant into study_data/, then seed the cold-start profile from a URL, a text file,
+or a LinkedIn PDF export, all summarized in one call.
+
+Two startup guards belong on the backend boot path. arch2 with an empty profile refuses
+to start, and arch1 prints a confirmation that injection is off. Both exist because both
+failure modes produce a session that looks completely normal and is undetectable
+afterwards.
+
+Finally there's an offline lane: eval/run_eval.py runs ablations (full, no_memory,
+no_web_search) scored by UpTrain. Worth showing, but mark it as currently not runnable,
+since pandas and uptrain aren't installed in this venv.
+
+On the numbers, a few are load bearing and worth annotating where they apply: 3 tool
+turns, the 800 character speech threshold, 15 second summarizer timeout, 20 utterance
+style buffer, 3 tasks per arm, 2 arms per participant.
+
+Now, format and look.
+
+Give me one self-contained HTML file with the diagram as inline SVG. No CDN, no external
+assets. Has to be readable in light and dark, and the page must not scroll sideways.
+Assume it gets read at around 1600px wide and possibly printed. If it genuinely won't fit
+in one picture, break it into two or three panels on the same page rather than cramming.
+
+I want this to look like a diagram an engineer drew for other engineers, so please avoid
+the things that make generated diagrams recognizable on sight:
+
+no gradients, no drop shadows, no glow, no rounded pill shapes everywhere. No emoji and
+no icon set. Don't lay everything out on an even grid with identical box sizes and equal
+gutters, because real systems aren't uniform and the layout should tell me what's
+important before I read a word. Don't default to three tidy horizontal bands unless the
+system actually has three. Skip the big centered title with a subtitle under it. Keep it
+to one typeface and let size and weight do the hierarchy. Two colors at most on top of
+black and grey, and spend the accent one entirely on the arm gate and the profile path so
+nothing competes with it.
+
+Label boxes with real module names, system_prompt.py, agent_loop.py, backend/tasks.py,
+not Presentation Layer or Business Logic. Label edges with what crosses them, wav bytes,
+transcript text, a CSV row, not just arrowheads. A legend is fine for line styles, since
+you'll need synchronous call, audio, write-only, telemetry read, and disabled to be
+distinguishable, but don't legend anything that's already obvious from the label.
+
+If something doesn't fit, cut it rather than shrinking the type to 6px. I'd rather have a
+slightly awkward diagram that's accurate and legible than a balanced one that's neither.
+
+Before you draw anything, tell me in a few sentences what you think the central story of
+this architecture is. If you read it differently than I've framed it above, say so and
+say why, I'd rather hear that now than after you've built the thing.

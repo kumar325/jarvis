@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 400" width="1400" height="400" role="img" aria-label="Himavat architecture. User input reaches the Himavat agent, which hits a personalization check that forks into Arch 1 baseline with no profile in the prompt, or Arch 2 personalized with a profile summary added. Both paths converge on the response.">
+
+  <!-- ==========================================================
+       STYLE BLOCK - edit these to match the poster exactly.
+       font-family ....... swap for the poster's font
+       #1A1A1A ........... title text
+       #5A6068 ........... one-line description text
+       #000000 ........... neutral box border + arrows
+       #3D1F5C ........... accent (fork + Arch 2)
+       #F6F2FA ........... accent box fill
+       rx="10" ........... corner radius
+       stroke-width ...... 1.6 neutral, 2.4 accent
+       ========================================================== -->
+  <style>
+    .box   { fill:none; stroke:#000000; stroke-width:1.6 }
+    .box-a { fill:none; stroke:#3D1F5C; stroke-width:2.4 }
+    .ttl   { font-family:"Helvetica Neue",Helvetica,Arial,sans-serif; font-size:20px; font-weight:700; fill:#1A1A1A }
+    .ttl-a { font-family:"Helvetica Neue",Helvetica,Arial,sans-serif; font-size:20px; font-weight:700; fill:#3D1F5C }
+    .dsc   { font-family:"Helvetica Neue",Helvetica,Arial,sans-serif; font-size:14.5px; font-weight:400; fill:#5A6068 }
+    .arw   { fill:none; stroke:#000000; stroke-width:1.8 }
+    .arw-a { fill:none; stroke:#3D1F5C; stroke-width:2.2 }
+  </style>
+
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#000000"/>
+    </marker>
+    <marker id="aa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#3D1F5C"/>
+    </marker>
+  </defs>
+
+  <!-- 1. User input -->
+  <rect x="30" y="155" width="200" height="100" rx="10" class="box"/>
+  <text x="130" y="197" class="ttl" text-anchor="middle">User Input</text>
+  <text x="130" y="225" class="dsc" text-anchor="middle">Typed or spoken</text>
+
+  <path d="M230,205 L274,205" class="arw" marker-end="url(#a)"/>
+
+  <!-- 2. Agent -->
+  <rect x="278" y="155" width="215" height="100" rx="10" class="box"/>
+  <text x="386" y="197" class="ttl" text-anchor="middle">Himavat Agent</text>
+  <text x="386" y="225" class="dsc" text-anchor="middle">LangChain + Groq LLM</text>
+
+  <path d="M493,205 L537,205" class="arw" marker-end="url(#a)"/>
+
+  <!-- 3. The fork - the methodological centerpiece -->
+  <rect x="541" y="155" width="270" height="100" rx="10" class="box-a"/>
+  <text x="676" y="197" class="ttl-a" text-anchor="middle">Personalization Check</text>
+  <text x="676" y="225" class="dsc" text-anchor="middle">Which study arm is running?</text>
+
+  <path d="M811,205 L837,205" class="arw-a"/>
+  <circle cx="837" cy="205" r="4.5" fill="#3D1F5C"/>
+  <path d="M837,205 L837,98 L857,98" class="arw" marker-end="url(#a)"/>
+  <path d="M837,205 L837,312 L857,312" class="arw-a" marker-end="url(#aa)"/>
+
+  <!-- 4a. Baseline arm -->
+  <rect x="863" y="48" width="280" height="100" rx="10" class="box"/>
+  <text x="1003" y="90" class="ttl" text-anchor="middle">Arch 1: Baseline</text>
+  <text x="1003" y="118" class="dsc" text-anchor="middle">No profile in the prompt</text>
+
+  <!-- 4b. Personalized arm -->
+  <rect x="863" y="262" width="280" height="100" rx="10" class="box-a"/>
+  <text x="1003" y="304" class="ttl-a" text-anchor="middle">Arch 2: Personalized</text>
+  <text x="1003" y="332" class="dsc" text-anchor="middle">Profile summary added</text>
+
+  <!-- converge -->
+  <path d="M1143,98 L1166,98 L1166,205" class="arw"/>
+  <path d="M1143,312 L1166,312 L1166,205" class="arw-a"/>
+  <circle cx="1166" cy="205" r="4.5" fill="#000000"/>
+  <path d="M1166,205 L1186,205" class="arw" marker-end="url(#a)"/>
+
+  <!-- 5. Response -->
+  <rect x="1190" y="155" width="190" height="100" rx="10" class="box"/>
+  <text x="1285" y="197" class="ttl" text-anchor="middle">Response</text>
+  <text x="1285" y="225" class="dsc" text-anchor="middle">Spoken and displayed</text>
+
+</svg>

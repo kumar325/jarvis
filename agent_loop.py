@@ -11,7 +11,7 @@ from system_prompt import build_system_message
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(errors="replace")
 
-# ANSI colors for terminal — dim gray for Jarvis's internal "thinking" lines
+# ANSI colors for terminal — dim gray for Himavat's internal "thinking" lines
 DIM = "\033[2m"
 RESET = "\033[0m"
 
@@ -32,7 +32,7 @@ def clear_conversation():
 
 def _think(message):
     """Print an internal-thinking line in dim gray, flushed immediately."""
-    print(f"{DIM}Jarvis (thinking): {message}{RESET}", flush=True)
+    print(f"{DIM}Himavat (thinking): {message}{RESET}", flush=True)
 
 
 def ask_jarvis(user_text, on_event=None):
