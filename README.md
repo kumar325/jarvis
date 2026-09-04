@@ -1,10 +1,10 @@
-# Jarvis
+# Himavat
 
 A voice assistant built to answer a research question: **does giving an assistant a
 cold-start profile of who you are — scraped once, before you ever speak to it — measurably
 change how useful people find it?**
 
-Jarvis is a working assistant, not a mock-up. You hold a key, talk, and it answers out
+Himavat is a working assistant, not a mock-up. You hold a key, talk, and it answers out
 loud: Whisper transcribes, a LangChain agent on Groq reasons and calls tools, and pyttsx3
 speaks the reply. It searches the web, cross-checks sources against each other, and manages
 files in a sandbox. It runs as a terminal program or as a browser app backed by a
@@ -152,6 +152,19 @@ eval/                  ablation harness and test queries
 
 `CLAUDE.md` carries the deeper design rationale — what each decision protects against, and
 which ones must not be reversed without a study-design conversation.
+
+---
+
+## Privacy & Data Handling
+
+Himavat collects PII as part of its cold-start personalization feature, including public
+profile data (e.g., LinkedIn, GitHub) and conversation content, gathered only from sources
+participants explicitly provide. This data is used solely to generate a study participant's
+profile and is never sold or shared with third parties. All collection follows an
+IRB-approved protocol with informed written consent, and participants may withdraw at any
+time. Responses and ratings are anonymized before analysis or publication, and data is
+retained only as long as necessary for research purposes. For questions or data removal
+requests, contact karankumar90210@gmail.com.
 
 ---
 
