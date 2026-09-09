@@ -164,7 +164,7 @@ profile and is never sold or shared with third parties. All collection follows a
 IRB-approved protocol with informed written consent, and participants may withdraw at any
 time. Responses and ratings are anonymized before analysis or publication, and data is
 retained only as long as necessary for research purposes. For questions or data removal
-requests, contact karankumar90210@gmail.com.
+requests, contact kkumar16@uw.edu
 
 ---
 
