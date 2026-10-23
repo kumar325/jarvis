@@ -1,4 +1,5 @@
 # Himavat
+**Previously known as Jarvis**, changed for copyright purposes
 
 A voice assistant built to answer a research question: **does giving an assistant a
 cold-start profile of who you are — scraped once, before you ever speak to it — measurably
@@ -60,6 +61,11 @@ Three personalization mechanisms that earlier versions injected — remembered f
 style mirroring, and retrieved preference examples — were deliberately removed from the
 prompt so that any Arch 2 result can be attributed to the cold-start profile alone. They are
 still collected on disk for later analysis, and still used by the CLI and the eval harness.
+
+---
+
+## Interface
+<img width="3192" height="1573" alt="Screenshot 2026-08-20 005508" src="https://github.com/user-attachments/assets/32fee799-cdfd-42bc-aca3-1e120619cb9d" />
 
 ---
 
