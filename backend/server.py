@@ -250,7 +250,9 @@ async def ws_endpoint(websocket: WebSocket):
     # write to the socket concurrently, or frames can interleave and corrupt the stream.
     send_lock = asyncio.Lock()
     busy = False
-    tts_enabled = True
+    # Every connection starts muted; the participant opts in with the unmute button. Sent
+    # to the client on connect below, so this — not the browser — sets the initial state.
+    tts_enabled = False
 
     # One session per connection, matching the fresh-conversation reset above. Carries no
     # participant identity — it exists purely to group this session's ratings.

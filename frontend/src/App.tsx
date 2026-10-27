@@ -14,16 +14,11 @@ import { RatingPrompt } from "./components/center/RatingPrompt";
 import { ArchCompleteNotice } from "./components/center/ArchCompleteNotice";
 import type { InputMode } from "./lib/types";
 
-const TTS_ENABLED_STORAGE_KEY = "jarvis-tts-enabled";
-
 function App() {
-  const [ttsEnabled, setTtsEnabled] = useState(() => {
-    const stored = localStorage.getItem(TTS_ENABLED_STORAGE_KEY);
-    return stored === null ? true : stored === "true";
-  });
-  useEffect(() => {
-    localStorage.setItem(TTS_ENABLED_STORAGE_KEY, String(ttsEnabled));
-  }, [ttsEnabled]);
+  // Starts muted on every load, matching the server's per-connection default (it sends
+  // tts_state on connect, which is authoritative). Not persisted: a remembered "unmuted"
+  // would carry over between participants and arms on the study machine.
+  const [ttsEnabled, setTtsEnabled] = useState(false);
 
   const [inputMode, setInputMode] = useState<InputMode>("text");
 
