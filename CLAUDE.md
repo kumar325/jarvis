@@ -48,6 +48,8 @@ jarvis.py           — thin main loop, Enter-to-talk or t-for-text input
 config.py           — constants and env loading
 voice.py            — Whisper STT + pyttsx3 TTS
 speech_summary.py   — shortens a long reply for the SPEAKER only (see below)
+display_format.py   — strips markdown from a web reply before it is shown, stored and rated
+                      (structure kept as line breaks; deterministic, arm-blind, never raises)
 agent_loop.py       — LangChain agent, MAX_TOOL_TURNS=3, graceful fallback
 system_prompt.py    — builds system prompt (base + URL profile only; see layers below)
 preferences.py      — in-context RLHF: stores preference pairs, cosine-similarity retrieval

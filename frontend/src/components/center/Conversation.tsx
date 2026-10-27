@@ -32,7 +32,7 @@ export function Conversation({ events, thinking }: Props) {
           ) : (
             <div
               key={event.id}
-              className="max-w-[85%] self-start px-1 text-[0.95rem] leading-relaxed text-[var(--text)]"
+              className="max-w-[85%] self-start whitespace-pre-line px-1 text-[0.95rem] leading-relaxed text-[var(--text)]"
             >
               {event.text}
             </div>

@@ -28,6 +28,7 @@ from starlette.concurrency import run_in_threadpool
 
 from agent_loop import ask_jarvis, clear_conversation
 from config import PARTICIPANT_ID, STUDY_CONDITION, profile_injection_enabled
+from display_format import clean_for_display
 
 # Collected on the web path so a browser study session produces the same on-disk state a
 # jarvis.py CLI session does. Write path ONLY — neither file is read back into the system
@@ -399,6 +400,9 @@ async def ws_endpoint(websocket: WebSocket):
             except Exception as e:
                 await send_json_safe(ErrorMessage(message=str(e)).model_dump())
                 return
+
+            # Before register_exchange(), so the stored and rated text is the displayed text.
+            reply = clean_for_display(reply)
 
             state.record_turn()
             turn_index += 1
